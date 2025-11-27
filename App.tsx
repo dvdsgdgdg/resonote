@@ -122,8 +122,12 @@ export default function App() {
       <div className="fixed top-0 left-0 right-0 h-10 bg-[#1e1e1e] border-b border-black z-50 flex items-center justify-between px-4 select-none shadow-md">
         <div className="flex items-center gap-4">
             {/* Icon & Title */}
-            <div className="flex items-center gap-2 mr-2">
-                <span className="material-symbols-rounded text-md-sys-primary text-[18px]">auto_awesome</span>
+            <div className="flex items-center gap-3 mr-2">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" className="w-6 h-6">
+                  <rect width="32" height="32" rx="10" fill="#A8C7FA"/>
+                  <path d="M20 10V6h-7v12.5c0 1.93-1.57 3.5-3.5 3.5S6 20.43 6 18.5 7.57 15 9.5 15c.47 0 .91.1 1.32.26V10h9z" fill="#062E6F" transform="translate(2, 2)"/>
+                  <path d="M26 4l-1.5 3L21.5 8.5 24.5 10 26 13l1.5-3 3-1.5-3-1.5z" fill="#062E6F"/>
+                </svg>
                 <span className="text-sm font-bold tracking-tight text-white/90">Resonote</span>
             </div>
             
