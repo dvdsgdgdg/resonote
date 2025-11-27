@@ -1,257 +1,235 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef } from 'react';
 import abcjs from 'abcjs';
-import { Button } from './Button';
 
 interface MusicDisplayProps {
   abcNotation: string;
+  warningId?: string;
 }
 
-export const MusicDisplay: React.FC<MusicDisplayProps> = ({ abcNotation }) => {
-  const paperRef = useRef<HTMLDivElement>(null);
-  const audioRef = useRef<HTMLDivElement>(null);
-  const [isPlaying, setIsPlaying] = useState(false);
-  // Use a ref to track playing state inside closures (like clickListener)
-  const isPlayingRef = useRef(false);
-  
+export const MusicDisplay: React.FC<MusicDisplayProps> = ({ abcNotation, warningId }) => {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const audioContainerRef = useRef<HTMLDivElement>(null);
+  // Keep a persistent reference to the controller to manage state across renders
   const synthControlRef = useRef<any>(null);
-  const visualObjRef = useRef<any>(null);
+
+  // Clean up controller on unmount
+  useEffect(() => {
+    return () => {
+      if (synthControlRef.current) {
+        try {
+            synthControlRef.current.pause();
+            synthControlRef.current.disable(true);
+        } catch (e) {
+            console.warn("Error cleaning up synth:", e);
+        }
+      }
+    };
+  }, []);
 
   useEffect(() => {
-    if (paperRef.current && abcNotation) {
-      
-      // Render the sheet music with click listener for seeking
-      const visualObj = abcjs.renderAbc(paperRef.current, abcNotation, {
-        responsive: 'resize',
+    let isMounted = true;
+    
+    if (!containerRef.current || !audioContainerRef.current) return;
+
+    // Ensure we have a valid ID for selectors
+    if (!containerRef.current.id) {
+        containerRef.current.id = `abc-paper-${Math.random().toString(36).substring(2, 9)}`;
+    }
+    const rootSelector = `#${containerRef.current.id}`;
+
+    // 1. Initialize Visuals
+    // Note: 'warn_id' is not a valid option for renderAbc (it's for the Editor class only).
+    // We must handle warnings manually from the return object.
+    const visualOptions = { 
         add_classes: true,
-        paddingtop: 0,
-        paddingbottom: 0,
-        paddingleft: 0,
-        paddingright: 0,
-        staffwidth: 800,
-        // Reduced arguments to match potential interface mismatch and avoid arity errors
-        clickListener: (abcElem: any, tuneNumber: number, classes: string, analysis: any, drag: any) => {
-            // Seek logic on click
-            if (synthControlRef.current && visualObjRef.current && visualObjRef.current[0]) {
-                try {
-                  const totalTime = visualObjRef.current[0].getTotalTime();
-                  // currentTrackMillisecond can be undefined on some elements
-                  const timestamp = typeof abcElem.currentTrackMillisecond === 'number' 
-                    ? abcElem.currentTrackMillisecond / 1000 
-                    : 0;
-                  
-                  // Validate numbers to prevent "non-finite" errors
-                  if (Number.isFinite(totalTime) && totalTime > 0 && Number.isFinite(timestamp)) {
-                       // In ABCJS 6.x, seek usually takes a percentage (0-1)
-                       const percent = Math.min(Math.max(timestamp / totalTime, 0), 1);
-                       
-                       if (Number.isFinite(percent)) {
-                         synthControlRef.current.seek(percent);
-                         
-                         // Always play if clicked, updating state
-                         synthControlRef.current.play();
-                         setIsPlaying(true);
-                         isPlayingRef.current = true;
-                       }
-                  }
-                } catch (err) {
-                  console.warn("Seek error:", err);
-                }
-            }
-        }
-      });
+        responsive: 'resize' as const, 
+        jazzchords: true
+    };
+    
+    // Render the ABC notation to SVG
+    // This replaces the SVG content, so subsequent selectors will find the new elements.
+    const visualObjs = abcjs.renderAbc(containerRef.current, abcNotation, visualOptions);
 
-      visualObjRef.current = visualObj;
-
-      // Initialize Audio Synthesis
-      if (abcjs.synth.supportsAudio()) {
-        const synthControl = new abcjs.synth.SynthController();
-        synthControlRef.current = synthControl;
-        
-        const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
-        
-        // Define Cursor Control using the manual SVG manipulation logic
-        const cursorControl = {
-            onStart: () => {
-                const svg = paperRef.current?.querySelector("svg");
-                // Remove any existing cursor to be safe
-                const existingCursor = svg?.querySelector(".abcjs-cursor");
-                if (existingCursor) existingCursor.remove();
-
-                // Create new cursor line
-                const cursor = document.createElementNS("http://www.w3.org/2000/svg", "line");
-                cursor.setAttribute("class", "abcjs-cursor");
-                cursor.setAttributeNS(null, 'x1', '0');
-                cursor.setAttributeNS(null, 'y1', '0');
-                cursor.setAttributeNS(null, 'x2', '0');
-                cursor.setAttributeNS(null, 'y2', '0');
-                svg?.appendChild(cursor);
-            },
-            onEvent: (ev: any) => {
-                // Ignore ties across measure lines if needed
-                if (ev.measureStart && ev.left === null) return;
-
-                // 1. Remove old selection
-                const lastSelection = paperRef.current?.querySelectorAll(".abcjs-highlight");
-                lastSelection?.forEach(el => el.classList.remove("abcjs-highlight"));
-
-                if (!ev) return;
-
-                // 2. Highlight current notes
-                if (ev.elements) {
-                     ev.elements.forEach((item: any) => {
-                        // Handle both single elements and arrays of elements (common in abcjs structures)
-                        if (item instanceof Element) {
-                             item.classList.add("abcjs-highlight");
-                        } else if (item.length) { 
-                             Array.from(item).forEach((subItem: any) => {
-                                 if (subItem instanceof Element) subItem.classList.add("abcjs-highlight");
-                             });
+    // 2. Handle Warnings Manually
+    if (warningId) {
+        const warningsDiv = document.getElementById(warningId);
+        if (warningsDiv) {
+            const warnings: string[] = [];
+            
+            // Collect warnings from all rendered tunes
+            visualObjs.forEach((tune: any) => {
+                if (tune.warnings) {
+                    tune.warnings.forEach((w: any) => {
+                        // Check if it's a plain string (common in some abcjs configurations)
+                        if (typeof w === 'string') {
+                            warnings.push(w);
+                        } 
+                        // Check if it's an object with details
+                        else if (typeof w === 'object' && w !== null) {
+                             const message = w.message || 'Unknown error';
+                             
+                             // Try to extract line and column/char info
+                             const line = w.line;
+                             const col = w.column ?? w.char; // Support both property names
+                             
+                             if (line !== undefined) {
+                                 let prefix = `Music Line:${line}`;
+                                 if (col !== undefined) {
+                                     prefix += `:${col}`;
+                                 }
+                                 warnings.push(`${prefix}: ${message}`);
+                             } else {
+                                 // No line info, just show the message
+                                 warnings.push(message);
+                             }
                         }
                     });
                 }
+            });
 
-                // 3. Move Cursor Line
-                const cursor = paperRef.current?.querySelector("svg .abcjs-cursor");
-                if (cursor && typeof ev.left === 'number' && typeof ev.top === 'number' && typeof ev.height === 'number') {
-                    cursor.setAttribute("x1", (ev.left - 2).toString());
-                    cursor.setAttribute("x2", (ev.left - 2).toString());
-                    cursor.setAttribute("y1", ev.top.toString());
-                    cursor.setAttribute("y2", (ev.top + ev.height).toString());
-                }
-            },
-            onFinished: () => {
-                // Clean up highlights
-                const lastSelection = paperRef.current?.querySelectorAll(".abcjs-highlight");
-                lastSelection?.forEach(el => el.classList.remove("abcjs-highlight"));
-                
-                // Reset cursor
-                const cursor = paperRef.current?.querySelector("svg .abcjs-cursor");
-                if (cursor) {
-                     cursor.setAttribute("x1", "0");
-                     cursor.setAttribute("x2", "0");
-                     cursor.setAttribute("y1", "0");
-                     cursor.setAttribute("y2", "0");
-                }
-                
-                setIsPlaying(false);
-                isPlayingRef.current = false;
-            }
-        };
-
-        // Create the midi buffer
-        const midiBuffer = new abcjs.synth.CreateSynth();
-        
-        midiBuffer.init({ 
-            visualObj: visualObj[0],
-            options: {
-                pan: [-0.1, 0.1], 
-            } 
-        }).then(() => {
-          // Set tune and attach the new cursor control logic
-          return synthControl.setTune(visualObj[0], false, { 
-              audioContext: audioContext,
-              cursorControl: cursorControl 
-          } as any);
-        }).then(() => {
-           // Ready
-        }).catch((error: any) => {
-          console.warn("Audio initialization problem:", error);
-        });
-      }
+            // Update the DOM element
+            warningsDiv.innerText = warnings.join('\n');
+        }
     }
-    
-    // Cleanup function
-    return () => {
-        if (synthControlRef.current) {
+
+    // 3. Initialize or Update Audio Controls
+    if (abcjs.synth.supportsAudio()) {
+        
+        // Lazy initialization of the controller (only once)
+        if (!synthControlRef.current) {
+             synthControlRef.current = new abcjs.synth.SynthController();
+             
+             const cursorControl = {
+                rootSelector,
+                beatSubdivisions: 2,
+                onReady() {},
+                onStart() {
+                    const svg = document.querySelector(`${rootSelector} svg`);
+                    if (!svg) return;
+                    let cursor = svg.querySelector(".abcjs-cursor");
+                    if (!cursor) {
+                        cursor = document.createElementNS("http://www.w3.org/2000/svg", "line");
+                        cursor.setAttribute("class", "abcjs-cursor");
+                        cursor.setAttributeNS(null, 'x1', '0');
+                        cursor.setAttributeNS(null, 'y1', '0');
+                        cursor.setAttributeNS(null, 'x2', '0');
+                        cursor.setAttributeNS(null, 'y2', '0');
+                        svg.appendChild(cursor);
+                    }
+                },
+                onBeat(beatNumber: number, totalBeats: number, totalTime: number) {},
+                onEvent(ev: any) {
+                    if (ev.measureStart && ev.left === null) return;
+                    
+                    const svg = document.querySelector(`${rootSelector} svg`);
+                    if (!svg) return;
+
+                    // Remove highlights
+                    const lastSelection = svg.querySelectorAll(".highlight");
+                    lastSelection.forEach(el => el.classList.remove("highlight"));
+
+                    // Add highlights
+                    for (let i = 0; i < ev.elements.length; i++) {
+                        const note = ev.elements[i];
+                        for (let j = 0; j < note.length; j++) {
+                            note[j].classList.add("highlight");
+                        }
+                    }
+
+                    // Move cursor
+                    const cursor = svg.querySelector(".abcjs-cursor");
+                    if (cursor) {
+                         cursor.setAttribute("x1", String(ev.left - 2));
+                         cursor.setAttribute("x2", String(ev.left - 2));
+                         cursor.setAttribute("y1", String(ev.top));
+                         cursor.setAttribute("y2", String(ev.top + ev.height));
+                    }
+                },
+                onFinished() {
+                    const svg = document.querySelector(`${rootSelector} svg`);
+                    if (!svg) return;
+                    
+                    const els = svg.querySelectorAll(".highlight");
+                    els.forEach(el => el.classList.remove("highlight"));
+                    
+                    const cursor = svg.querySelector(".abcjs-cursor");
+                    if (cursor) {
+                        cursor.setAttribute("x1", "0");
+                        cursor.setAttribute("x2", "0");
+                        cursor.setAttribute("y1", "0");
+                        cursor.setAttribute("y2", "0");
+                    }
+                }
+            };
+            
+            // Load creates the UI. We only do this once.
+            synthControlRef.current.load(audioContainerRef.current, cursorControl, {
+                displayLoop: true,
+                displayRestart: true,
+                displayPlay: true,
+                displayProgress: true,
+                displayWarp: true
+            });
+        }
+
+        // 4. CRITICAL: Stop any currently playing audio when notation changes
+        if (synthControlRef.current && typeof synthControlRef.current.pause === 'function') {
             try {
                 synthControlRef.current.pause();
             } catch (e) {
-                // ignore
+                console.warn("Failed to pause audio:", e);
             }
         }
-        setIsPlaying(false);
-        isPlayingRef.current = false;
-    };
-  }, [abcNotation]);
 
-  const togglePlay = () => {
-    if (synthControlRef.current) {
-      try {
-        if (isPlayingRef.current) {
-          synthControlRef.current.pause();
-          setIsPlaying(false);
-          isPlayingRef.current = false;
-        } else {
-          synthControlRef.current.play();
-          setIsPlaying(true);
-          isPlayingRef.current = true;
-        }
-      } catch (err) {
-        console.error("Playback toggle error:", err);
-        // Force state reset if audio context is messed up
-        setIsPlaying(false);
-        isPlayingRef.current = false;
-      }
-    }
-  };
+        // 5. Set the new tune
+        const setTune = async () => {
+            // We need a visual object to generate audio
+            // Use the first tune that rendered successfully
+            const visualObj = visualObjs[0];
+            if (!visualObj) return;
 
-  const handleStop = () => {
-     if (synthControlRef.current) {
-        try {
-            // "stop()" in abcjs can throw if not started, so we use pause + seek(0)
-            synthControlRef.current.pause(); 
-            synthControlRef.current.seek(0); 
-            setIsPlaying(false);
-            isPlayingRef.current = false;
+            const midiBuffer = new abcjs.synth.CreateSynth();
             
-            // Manual cursor cleanup on stop
-            const notes = paperRef.current?.querySelectorAll(".abcjs-highlight");
-            notes?.forEach(n => n.classList.remove("abcjs-highlight"));
+            try {
+                await midiBuffer.init({ visualObj: visualObj });
+                if (!isMounted) return;
 
-            const cursor = paperRef.current?.querySelector("svg .abcjs-cursor");
-            if (cursor) {
-                cursor.setAttribute("x1", "0");
-                cursor.setAttribute("x2", "0");
+                // setTune replaces the current audio buffer
+                await synthControlRef.current.setTune(visualObj, false, { chordsOff: false });
+                if (isMounted) console.log("Audio successfully loaded.");
+            } catch (error: any) {
+                console.warn("Audio problem:", error);
             }
-        } catch (err) {
-            console.warn("Stop error:", err);
-            setIsPlaying(false);
-            isPlayingRef.current = false;
+        };
+
+        setTune();
+        
+    } else {
+        if (audioContainerRef.current) {
+            audioContainerRef.current.innerHTML = "<div class='text-red-400 p-2'>Audio is not supported in this browser.</div>";
         }
-     }
-  }
+    }
+
+    return () => {
+        isMounted = false;
+        // We do not disable the controller here to avoid UI flickering/re-creation on every keystroke
+        // The explicit pause() call at the start of the next effect run handles stopping the audio.
+    };
+  }, [abcNotation, warningId]);
 
   return (
-    <div className="flex flex-col h-full bg-white text-black rounded-3xl overflow-hidden shadow-2xl shadow-black/50 border border-md-sys-outline/20">
-      {/* Header / Controls */}
-      <div className="flex items-center justify-between px-6 py-4 border-b border-neutral-200 bg-neutral-50">
-         <div className="flex items-center gap-4">
-            <h3 className="text-sm font-bold uppercase tracking-widest text-neutral-500">Preview</h3>
-         </div>
-         <div className="flex items-center gap-2">
-            <Button 
-                onClick={togglePlay} 
-                variant="primary" 
-                icon={isPlaying ? "pause" : "play_arrow"}
-                className="!h-9 !px-5"
-            >
-                {isPlaying ? "Pause" : "Play"}
-            </Button>
-            <Button 
-                onClick={handleStop} 
-                variant="secondary" 
-                icon={isPlaying ? "stop" : "stop"} 
-                className="!h-9 !w-9 !px-0"
-            />
-         </div>
+    <div className="w-full h-full relative flex flex-col bg-white overflow-hidden p-4 md:p-8">
+      {/* Audio Controls */}
+      <div className="w-full flex justify-center mb-6">
+         <div id="audio" ref={audioContainerRef} className="w-full max-w-3xl"></div>
       </div>
       
-      {/* Sheet Music Area */}
-      <div className="flex-1 overflow-auto bg-white p-8 flex justify-center min-h-0 relative">
-          <div id="paper" ref={paperRef} className="w-full max-w-4xl"></div>
-          {/* Audio container (hidden but necessary for some abcjs internals) */}
-          <div ref={audioRef} className="hidden"></div>
-      </div>
+      {/* Visual Sheet Music */}
+      <div 
+        ref={containerRef} 
+        id="paper"
+        className="flex-1 w-full overflow-auto"
+      ></div>
     </div>
   );
 };

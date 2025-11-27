@@ -87,15 +87,171 @@
         fill: #121212 !important;
       }
       
-      /* Playback Highlight (Current Note) */
-      .abcjs-highlight {
-        fill: #062E6F !important;
+      /* Cursor and Highlight */
+      .highlight, .abcjs-highlight {
+        fill: #0a9ecc !important;
       }
       
-      /* Playback Cursor (Vertical Line) */
       .abcjs-cursor {
-        stroke: #A8C7FA !important;
-        stroke-width: 2px !important;
+        stroke: #0a9ecc !important;
+        stroke-width: 2px;
+      }
+
+      /* ABCJS Audio Player CSS - Updated for larger touch targets and visibility */
+      .abcjs-inline-audio {
+        height: 48px; /* Increased height */
+        padding: 0 10px;
+        border-radius: 8px;
+        background-color: #2d2d2d; /* Matching surfaceVariant */
+        border: 1px solid #444746;
+        display: flex;
+        align-items: center;
+        box-sizing: border-box;
+        width: 100%;
+        color: #E3E3E3;
+      }
+
+      .abcjs-inline-audio.abcjs-disabled {
+        opacity: 0.5;
+        pointer-events: none;
+      }
+
+      .abcjs-inline-audio .abcjs-btn {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        width: 44px; /* Larger buttons */
+        height: 44px;
+        margin-right: 4px;
+        padding: 8px;
+        background: none !important;
+        border: none;
+        box-sizing: border-box;
+        border-radius: 4px;
+        cursor: pointer;
+      }
+      
+      .abcjs-inline-audio .abcjs-btn:hover {
+        background-color: rgba(255, 255, 255, 0.1) !important;
+      }
+
+      .abcjs-btn g {
+        fill: #E3E3E3;
+        stroke: #E3E3E3;
+      }
+
+      .abcjs-inline-audio .abcjs-midi-selection.abcjs-pushed,
+      .abcjs-inline-audio .abcjs-midi-loop.abcjs-pushed,
+      .abcjs-inline-audio .abcjs-midi-reset.abcjs-pushed {
+        background-color: #444746 !important;
+        color: #A8C7FA;
+      }
+      
+      .abcjs-inline-audio .abcjs-midi-loop.abcjs-pushed g {
+        fill: #A8C7FA;
+        stroke: #A8C7FA;
+      }
+
+      .abcjs-inline-audio .abcjs-midi-start .abcjs-pause-svg,
+      .abcjs-inline-audio .abcjs-midi-start .abcjs-loading-svg,
+      .abcjs-inline-audio .abcjs-midi-start.abcjs-pushed .abcjs-play-svg,
+      .abcjs-inline-audio .abcjs-midi-start.abcjs-loading .abcjs-play-svg {
+        display: none;
+      }
+
+      .abcjs-inline-audio .abcjs-midi-start.abcjs-pushed .abcjs-pause-svg {
+        display: block;
+      }
+
+      /* Progress Bar Container */
+      .abcjs-inline-audio .abcjs-midi-progress-background {
+        background-color: #1E1E1E;
+        height: 12px; /* Thicker progress bar */
+        border-radius: 6px;
+        margin: 0 16px;
+        position: relative;
+        flex: 1;
+        padding: 0;
+        box-sizing: border-box;
+        cursor: pointer;
+        border: 1px solid #444746;
+      }
+
+      /* Progress Indicator (The Handle) */
+      .abcjs-inline-audio .abcjs-midi-progress-indicator {
+        width: 16px; /* Width of the handle */
+        height: 16px; /* Height of the handle */
+        margin-left: -8px; /* Center the handle */
+        background-color: #A8C7FA; /* Primary Color */
+        position: absolute;
+        display: block;
+        border-radius: 50%; /* Circular handle */
+        top: -3px; /* Align vertically center (12px height - 16px height / 2 approx) */
+        left: 0;
+        box-sizing: border-box;
+        box-shadow: 0 0 4px rgba(0,0,0,0.5);
+        z-index: 10;
+      }
+
+      .abcjs-inline-audio .abcjs-midi-clock {
+        margin: 0 12px;
+        display: inline-block;
+        font-family: 'Roboto Mono', monospace;
+        font-size: 14px;
+        font-weight: 500;
+        box-sizing: border-box;
+        color: #E3E3E3;
+        min-width: 45px;
+        text-align: center;
+      }
+
+      .abcjs-inline-audio .abcjs-tempo-wrapper {
+        font-size: 12px;
+        color: #C4C7C5;
+        box-sizing: border-box;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+      }
+
+      .abcjs-inline-audio .abcjs-midi-tempo {
+        border-radius: 4px;
+        border: 1px solid #444746;
+        margin: 0 4px;
+        width: 50px;
+        padding: 2px 4px;
+        box-sizing: border-box;
+        background-color: #1E1E1E;
+        color: #E3E3E3;
+        font-family: 'Roboto Mono', monospace;
+        text-align: center;
+      }
+      
+      .abcjs-inline-audio .abcjs-midi-tempo:focus {
+        outline: 1px solid #A8C7FA;
+        border-color: #A8C7FA;
+      }
+
+      .abcjs-inline-audio .abcjs-loading .abcjs-loading-svg {
+        display: inherit;
+      }
+
+      .abcjs-inline-audio .abcjs-loading {
+        outline: none;
+        animation: abcjs-spin 1s linear infinite;
+      }
+      
+      .abcjs-inline-audio .abcjs-loading-svg circle {
+        stroke: #A8C7FA;
+      }
+
+      @keyframes abcjs-spin {
+        from {transform:rotate(0deg);}
+        to {transform:rotate(360deg);}
+      }
+
+      .abcjs-css-warning {
+        display: none;
       }
     </style>
   <script type="importmap">

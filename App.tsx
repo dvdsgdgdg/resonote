@@ -7,16 +7,17 @@ import { AILogger } from './components/AILogger';
 import { convertImageToABC } from './services/geminiService';
 import { UploadFileState, GenerationState, LogEntry } from './types';
 
-// Default ABC example for empty state
+// Default ABC example with chords for synth and visual test
 const DEFAULT_ABC = `X: 1
 T: Cooley's
 M: 4/4
 L: 1/8
+R: reel
 K: Emin
-|:D2|EB{c}BA B2 EB|~B2 AB dBAG|FDAD BDAD|FDAD dAFD|
-EBBA B2 EB|B2 AB defg|afe^c dBAF|DEFD E2:|
-|:gf|eB B2 efge|eB B2 gedB|A2 FA DAFA|A2 FA defg|
-eB B2 eBgB|eB B2 defg|afe^c dBAF|DEFD E2:|`;
+|:D2|"Em"EB{c}BA B2 EB|~B2 AB dBAG|"D"FDAD BDAD|FDAD dAFD|
+"Em"EBBA B2 EB|B2 AB defg|"D"afe^c dBAF|"Em"DEFD E2:|
+|:gf|"Em"eB B2 efge|eB B2 gedB|"D"A2 FA DAFA|A2 FA defg|
+"Em"eB B2 eBgB|eB B2 defg|"D"afe^c dBAF|"Em"DEFD E2:|`;
 
 const AVAILABLE_MODELS = [
   { id: 'gemini-3-pro-preview', name: 'Gemini 3 Pro' },
@@ -33,7 +34,8 @@ export default function App() {
     result: null,
     logs: []
   });
-  const [manualAbc, setManualAbc] = useState<string>('');
+  // Initialize with DEFAULT_ABC directly, so we don't rely on fallbacks during render
+  const [manualAbc, setManualAbc] = useState<string>(DEFAULT_ABC);
 
   const handleFilesSelected = (newFiles: File[]) => {
     const fileStates: UploadFileState[] = newFiles.map(f => ({
@@ -109,7 +111,8 @@ export default function App() {
   const handleReset = () => {
     setFiles([]);
     setGeneration({ isLoading: false, error: null, result: null, logs: [] });
-    setManualAbc('');
+    // Restore default ABC on explicit reset
+    setManualAbc(DEFAULT_ABC);
   };
 
   return (
@@ -134,26 +137,10 @@ export default function App() {
             </div>
         </div>
 
-        {/* Right Side Status & Model Selector */}
+        {/* Right Side Status & Traffic Lights */}
         <div className="flex items-center gap-4">
-             {/* Model Selector Dropdown */}
-             <div className="relative flex items-center bg-[#2d2d2d] rounded border border-[#444] hover:border-[#666] transition-colors">
-               <span className="material-symbols-rounded absolute left-2 text-[16px] text-md-sys-primary pointer-events-none">smart_toy</span>
-               <select 
-                  value={selectedModel}
-                  onChange={(e) => setSelectedModel(e.target.value)}
-                  className="appearance-none bg-transparent text-[11px] font-medium text-white/90 pl-8 pr-8 py-1 outline-none cursor-pointer w-[160px]"
-               >
-                 {AVAILABLE_MODELS.map(model => (
-                   <option key={model.id} value={model.id} className="bg-[#2d2d2d] text-white">
-                     {model.name}
-                   </option>
-                 ))}
-               </select>
-               <span className="material-symbols-rounded absolute right-2 text-[16px] text-md-sys-secondary pointer-events-none">expand_more</span>
-             </div>
-
-             <div className="flex gap-2 pl-2 border-l border-white/10">
+             {/* Traffic Lights */}
+             <div className="flex gap-2 pl-2">
                  <div className="w-3 h-3 rounded-full bg-[#ff5f57] border border-black/20 shadow-sm hover:brightness-110 cursor-pointer"></div>
                  <div className="w-3 h-3 rounded-full bg-[#febc2e] border border-black/20 shadow-sm hover:brightness-110 cursor-pointer"></div>
                  <div className="w-3 h-3 rounded-full bg-[#28c840] border border-black/20 shadow-sm hover:brightness-110 cursor-pointer"></div>
@@ -201,6 +188,28 @@ export default function App() {
               <AILogger logs={generation.logs} visible={generation.logs.length > 0} />
 
               <div className="mt-4">
+                {/* Model Selector */}
+                <div className="flex items-center justify-between mb-3 bg-md-sys-surfaceVariant/30 p-2 rounded-lg border border-md-sys-outline/10">
+                    <div className="flex items-center gap-2">
+                        <span className="material-symbols-rounded text-md-sys-primary text-[18px]">smart_toy</span>
+                        <span className="text-xs font-medium text-md-sys-secondary">Model</span>
+                    </div>
+                    <div className="relative">
+                        <select 
+                            value={selectedModel}
+                            onChange={(e) => setSelectedModel(e.target.value)}
+                            className="appearance-none bg-transparent text-xs font-bold text-white/90 pl-2 pr-6 py-1 outline-none cursor-pointer text-right w-[140px]"
+                        >
+                            {AVAILABLE_MODELS.map(model => (
+                            <option key={model.id} value={model.id} className="bg-[#2d2d2d] text-white">
+                                {model.name}
+                            </option>
+                            ))}
+                        </select>
+                        <span className="material-symbols-rounded absolute right-0 top-1/2 -translate-y-1/2 text-[16px] text-md-sys-secondary pointer-events-none">expand_more</span>
+                    </div>
+                </div>
+
                 <Button 
                   onClick={handleGenerate} 
                   disabled={files.length === 0} 
@@ -222,8 +231,9 @@ export default function App() {
             {/* Code Editor */}
             <div className="flex-1 min-h-[300px] flex flex-col">
               <Editor 
-                value={manualAbc || DEFAULT_ABC} 
+                value={manualAbc} 
                 onChange={setManualAbc} 
+                warningId="abc-parse-warnings"
               />
             </div>
           </div>
@@ -231,7 +241,7 @@ export default function App() {
           {/* Right Column: Visualization */}
           <div className="lg:col-span-7 h-full flex flex-col">
              <div className="flex-1 bg-md-sys-surface rounded-2xl border border-md-sys-outline/20 overflow-hidden relative shadow-2xl">
-                 <MusicDisplay abcNotation={manualAbc || DEFAULT_ABC} />
+                 <MusicDisplay abcNotation={manualAbc} warningId="abc-parse-warnings" />
              </div>
           </div>
 
