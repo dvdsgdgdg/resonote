@@ -1,0 +1,5 @@
+{
+  "name": "Resonote",
+  "description": "A high-fidelity sheet music digitizer using Gemini 3 Pro Vision capabilities to convert images into playable ABC notation.",
+  "requestFramePermissions": []
+}

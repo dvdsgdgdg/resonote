@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Resonote</title>
+    <!-- Google Fonts: Inter for UI, Roboto Mono for Code -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <!-- Material Symbols Rounded (Thick style for Material You) -->
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" />
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        darkMode: 'class',
+        theme: {
+          extend: {
+            fontFamily: {
+              sans: ['Inter', 'sans-serif'],
+              mono: ['Roboto Mono', 'monospace'],
+            },
+            colors: {
+              md: {
+                sys: {
+                  background: '#0F0F0F',
+                  surface: '#1E1E1E',
+                  surfaceVariant: '#2D2D2D',
+                  outline: '#444746',
+                  primary: '#A8C7FA',
+                  onPrimary: '#062E6F',
+                  secondary: '#C4C7C5',
+                  tertiary: '#E0E2E0',
+                  error: '#FFB4AB'
+                }
+              }
+            }
+          }
+        }
+      }
+    </script>
+    <style>
+      body {
+        background-color: #0F0F0F;
+        color: #E3E3E3;
+      }
+      .material-symbols-rounded {
+        font-variation-settings: 'FILL' 0, 'wght' 600, 'GRAD' 0, 'opsz' 24;
+      }
+      /* Custom Scrollbar */
+      ::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+      }
+      ::-webkit-scrollbar-track {
+        background: #1E1E1E; 
+      }
+      ::-webkit-scrollbar-thumb {
+        background: #444; 
+        border-radius: 4px;
+      }
+      ::-webkit-scrollbar-thumb:hover {
+        background: #555; 
+      }
+      /* ABCJS Custom Styling for High Contrast on White Paper */
+      #paper svg {
+        fill: #121212 !important;
+      }
+      #paper path {
+        fill: #121212 !important;
+      }
+      #paper .abcjs-note {
+        fill: #121212 !important;
+      }
+      #paper .abcjs-staff {
+        stroke: #121212 !important;
+      }
+      #paper .abcjs-staff-extra {
+        stroke: #121212 !important;
+      }
+      #paper .abcjs-lyric {
+        fill: #121212 !important;
+      }
+      #paper .abcjs-annotation {
+        fill: #121212 !important;
+      }
+      
+      /* Playback Cursor - Increased Specificity */
+      #paper .abcjs-cursor,
+      #paper .abcjs-cursor path,
+      #paper g.abcjs-cursor path {
+        fill: #062E6F !important;
+        stroke: #A8C7FA !important;
+        stroke-width: 2px !important;
+        opacity: 1 !important;
+      }
+    </style>
+  <script type="importmap">
+{
+  "imports": {
+    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.30.0",
+    "react/": "https://aistudiocdn.com/react@^19.2.0/",
+    "react": "https://aistudiocdn.com/react@^19.2.0",
+    "react-dom/client": "https://aistudiocdn.com/react-dom@^19.2.0/client",
+    "react-dom": "https://aistudiocdn.com/react-dom@^19.2.0",
+    "abcjs": "https://aistudiocdn.com/abcjs@^6.5.2",
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/"
+  }
+}
+</script>
+</head>
+  <body>
+    <div id="root"></div>
+  </body>
+</html>
