@@ -16,7 +16,8 @@ import { validateABC } from './utils/abcValidator';
 import { MusicDisplayHandle } from './components/MusicDisplay';
 import { transposeABC } from './utils/abcTransposer';
 
-const STORAGE_KEY = 'resonote_sessions_v1';
+// Bumped version to v2 to force load new DEFAULT_ABC with multi-tracks
+const STORAGE_KEY = 'resonote_sessions_v2';
 
 export default function App() {
   // --- State Management ---

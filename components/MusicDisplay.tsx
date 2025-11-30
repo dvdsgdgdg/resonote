@@ -13,6 +13,11 @@ export interface MusicDisplayHandle {
   exportFile: (type: 'png' | 'pdf' | 'midi' | 'wav' | 'mp3') => void;
 }
 
+interface VoiceInfo {
+  id: number;
+  name: string;
+}
+
 export const MusicDisplay = React.forwardRef<MusicDisplayHandle, MusicDisplayProps>(({ 
   abcNotation, 
   warningId, 
@@ -29,12 +34,79 @@ export const MusicDisplay = React.forwardRef<MusicDisplayHandle, MusicDisplayPro
   
   const [exportingState, setExportingState] = useState<string | null>(null);
 
+  // Mixer State
+  const [voices, setVoices] = useState<VoiceInfo[]>([]);
+  const [muted, setMuted] = useState<Set<number>>(new Set());
+  const [solos, setSolos] = useState<Set<number>>(new Set());
+  const [showMixer, setShowMixer] = useState(false);
+  
   // Stable ref for the callback to prevent re-triggering effects on prop changes
   const onThumbnailGeneratedRef = useRef(onThumbnailGenerated);
   useEffect(() => {
     onThumbnailGeneratedRef.current = onThumbnailGenerated;
   }, [onThumbnailGenerated]);
 
+  // --- 1. Voice Detection Logic (Decoupled from Editor) ---
+  // This ensures immediate updates on Paste (Ctrl+V) or Delete All (Ctrl+A -> Del)
+  // We parse the ABC string directly without waiting for the visual editor to render.
+  useEffect(() => {
+    // Handle Empty State immediately
+    if (!abcNotation || abcNotation.trim() === "") {
+        setVoices([]);
+        setMuted(new Set());
+        setSolos(new Set());
+        return;
+    }
+
+    // Parse ABC synchronously to get voice metadata
+    // This is lightweight compared to rendering
+    const tunes = abcjs.parseOnly(abcNotation);
+    const tune = tunes[0];
+
+    if (tune && tune.lines) {
+        const detectedVoices: VoiceInfo[] = [];
+        let vCount = 0;
+        
+        // Scan the music lines to determine voice structure
+        // We look for the first line that contains staff info
+        const firstMusicLine = tune.lines.find((l: any) => l.staff);
+        
+        if (firstMusicLine && firstMusicLine.staff) {
+            firstMusicLine.staff.forEach((st: any) => {
+                    if (st.voices) {
+                        st.voices.forEach((v: any, idx: number) => {
+                            let name = `Track ${vCount + 1}`;
+                            // Attempt to find voice name in title info
+                            if (st.title && st.title[idx]) {
+                                if (st.title[idx].name) name = st.title[idx].name;
+                                else if (st.title[idx].subname) name = st.title[idx].subname;
+                            }
+                            detectedVoices.push({ id: vCount, name });
+                            vCount++;
+                        });
+                    }
+            });
+        }
+        
+        // Update state if changed
+        setVoices(prev => {
+            if (JSON.stringify(detectedVoices) !== JSON.stringify(prev)) {
+                // If the number of voices changed, reset mixer state to prevent index errors
+                if (detectedVoices.length !== prev.length) {
+                    setMuted(new Set());
+                    setSolos(new Set());
+                }
+                return detectedVoices;
+            }
+            return prev;
+        });
+    } else {
+        // Fallback if parse fails or no music lines found
+        setVoices([]);
+    }
+  }, [abcNotation]);
+
+  // --- 2. Editor Initialization ---
   useEffect(() => {
     let retryCount = 0;
     const maxRetries = 20; // Try for up to 2 seconds
@@ -155,6 +227,9 @@ export const MusicDisplay = React.forwardRef<MusicDisplayHandle, MusicDisplayPro
                     composerfont: "Inter 12 italic",
                     footerfont: "Inter 10"
                 }
+            },
+            onchange: () => {
+                // Note: Voice detection logic moved to dedicated useEffect for reliability
             }
         });
       } else {
@@ -170,14 +245,38 @@ export const MusicDisplay = React.forwardRef<MusicDisplayHandle, MusicDisplayPro
 
   }, [textareaId, paperId, audioId, warningId]);
 
-  // Sync logic: Force abcjs to re-process if the prop changes
+  // --- 3. Sync React State with abcjs Editor ---
   useEffect(() => {
+     // This is crucial for the Visual Editor to update when the prop changes
+     // programmatically (e.g. Paste, Import, AI Generation)
      const ta = document.getElementById(textareaId);
      if(ta) {
+        // We must trigger events so abcjs.Editor detects the value change
         ta.dispatchEvent(new Event('change')); 
         ta.dispatchEvent(new Event('input')); 
      }
   }, [abcNotation, textareaId]);
+
+  // --- 4. Update Synth when Mixer state changes ---
+  useEffect(() => {
+      if (!editorRef.current) return;
+
+      const voicesOff: number[] = [];
+      if (solos.size > 0) {
+          // If any solo is active, mute everything else
+          voices.forEach(v => {
+              if (!solos.has(v.id)) voicesOff.push(v.id);
+          });
+      } else {
+          // Otherwise obey explicit mutes
+          muted.forEach(id => voicesOff.push(id));
+      }
+
+      // Apply changes to synth
+      if (editorRef.current.synthParamChanged) {
+           editorRef.current.synthParamChanged({ voicesOff });
+      }
+  }, [muted, solos, voices]);
 
   // --- Auto Thumbnail Generation ---
   const generateThumbnail = useCallback(() => {
@@ -207,8 +306,6 @@ export const MusicDisplay = React.forwardRef<MusicDisplayHandle, MusicDisplayPro
     const img = new Image();
     
     // Determine Dimensions
-    // CRITICAL FIX: getBoundingClientRect returns 0 if element is hidden (display: none).
-    // We must fallback to viewBox or reasonable defaults.
     const rect = svg.getBoundingClientRect();
     let width = rect.width;
     let height = rect.height;
@@ -506,15 +603,91 @@ export const MusicDisplay = React.forwardRef<MusicDisplayHandle, MusicDisplayPro
     exportFile: handleExport
   }));
 
+  const toggleMute = (voiceId: number) => {
+      setMuted(prev => {
+          const next = new Set(prev);
+          if (next.has(voiceId)) next.delete(voiceId);
+          else next.add(voiceId);
+          return next;
+      });
+  };
+
+  const toggleSolo = (voiceId: number) => {
+      setSolos(prev => {
+          const next = new Set(prev);
+          if (next.has(voiceId)) next.delete(voiceId);
+          else next.add(voiceId);
+          return next;
+      });
+  };
+
   return (
-    <div className="w-full h-full flex flex-col bg-white text-black">
-        {/* Toolbar */}
-        <div className="flex items-center justify-between px-4 py-2 border-b border-md-sys-outline/10 bg-md-sys-surfaceVariant/5">
-            <div id={audioId} className="flex-1 mr-4 min-h-[40px] flex items-center">
-                {/* Audio controls render here automatically by abcjs */}
+    <div className="w-full h-full flex flex-col bg-white text-black relative">
+        {/* Toolbar Container - Column Layout for better spacing */}
+        <div className="flex flex-col border-b border-md-sys-outline/10 bg-md-sys-surfaceVariant/5 z-10">
+            
+            {/* Row 1: Audio Player (Full Width) */}
+            <div className="w-full px-4 py-2 border-b border-black/5">
+                 <div id={audioId} className="w-full min-h-[40px] flex items-center justify-center">
+                     {/* Audio controls render here automatically by abcjs */}
+                 </div>
             </div>
             
-            <div className="flex items-center gap-1">
+            {/* Row 2: Menu Controls (Right Aligned) */}
+            <div className="flex items-center justify-end px-4 py-2 gap-1">
+                {voices.length > 0 && (
+                    <div className="relative">
+                        <button 
+                            onClick={() => setShowMixer(!showMixer)}
+                            className={`p-2 rounded transition-colors flex items-center gap-2 ${showMixer ? 'bg-md-sys-primary text-white' : 'hover:bg-black/5 text-md-sys-secondary hover:text-black'}`}
+                            title="Audio Mixer"
+                        >
+                            <span className="material-symbols-rounded text-lg">tune</span>
+                        </button>
+
+                        {/* Mixer Popover */}
+                        {showMixer && (
+                            <div className="absolute top-full right-0 mt-2 w-64 bg-[#1E1E1E] rounded-xl shadow-2xl border border-white/10 overflow-hidden z-[100] animate-in fade-in zoom-in-95 duration-100 text-white">
+                                <div className="px-4 py-3 border-b border-white/10 bg-[#252525] flex justify-between items-center">
+                                    <h4 className="text-xs font-bold uppercase tracking-wider text-gray-400">Mixer</h4>
+                                    <span className="text-[10px] bg-black/30 px-2 py-0.5 rounded-full text-gray-500">{voices.length} Tracks</span>
+                                </div>
+                                <div className="max-h-64 overflow-y-auto p-2">
+                                    {voices.map(v => {
+                                        const isMuted = muted.has(v.id);
+                                        const isSolo = solos.has(v.id);
+                                        const isImplicitlyMuted = solos.size > 0 && !isSolo;
+
+                                        return (
+                                            <div key={v.id} className={`flex items-center justify-between p-2 rounded-lg mb-1 ${isImplicitlyMuted ? 'opacity-50' : ''} hover:bg-white/5 transition-all`}>
+                                                <span className="text-xs font-medium truncate flex-1 mr-2 text-gray-300" title={v.name}>{v.name}</span>
+                                                <div className="flex items-center gap-1">
+                                                    <button 
+                                                        onClick={() => toggleMute(v.id)}
+                                                        className={`w-6 h-6 rounded flex items-center justify-center text-[10px] font-bold transition-colors ${isMuted ? 'bg-red-500 text-white' : 'bg-white/10 text-gray-400 hover:bg-white/20 hover:text-white'}`}
+                                                        title="Mute"
+                                                    >
+                                                        M
+                                                    </button>
+                                                    <button 
+                                                        onClick={() => toggleSolo(v.id)}
+                                                        className={`w-6 h-6 rounded flex items-center justify-center text-[10px] font-bold transition-colors ${isSolo ? 'bg-yellow-500 text-black' : 'bg-white/10 text-gray-400 hover:bg-white/20 hover:text-white'}`}
+                                                        title="Solo"
+                                                    >
+                                                        S
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                <div className="w-px h-6 bg-black/10 mx-1"></div>
+
                 <button 
                     onClick={() => handleExport('png')} 
                     disabled={!!exportingState}
@@ -558,7 +731,7 @@ export const MusicDisplay = React.forwardRef<MusicDisplayHandle, MusicDisplayPro
             </div>
         </div>
 
-        <div className="flex-1 overflow-auto p-4 custom-scrollbar relative bg-white">
+        <div className="flex-1 overflow-auto p-4 custom-scrollbar relative bg-white" onClick={() => setShowMixer(false)}>
              <div id={paperId} className="w-full min-h-full" />
              {(!abcNotation) && (
                 <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-30">
