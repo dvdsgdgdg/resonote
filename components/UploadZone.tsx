@@ -20,7 +20,7 @@ export const UploadZone: React.FC<UploadZoneProps> = ({
     e.preventDefault();
     e.stopPropagation();
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      const filesArray = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith('image/'));
+      const filesArray = Array.from(e.dataTransfer.files).filter((f: File) => f.type.startsWith('image/'));
       onFilesSelected(filesArray);
     }
   }, [onFilesSelected]);
@@ -32,7 +32,7 @@ export const UploadZone: React.FC<UploadZoneProps> = ({
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
-      const filesArray = Array.from(e.target.files).filter(f => f.type.startsWith('image/'));
+      const filesArray = Array.from(e.target.files).filter((f: File) => f.type.startsWith('image/'));
       onFilesSelected(filesArray);
     }
   };

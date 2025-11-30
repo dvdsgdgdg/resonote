@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 
 interface HeaderProps {
   activeMenu: string | null;
@@ -6,6 +6,7 @@ interface HeaderProps {
   onOpenAbout: () => void;
   onOpenFeedback: () => void;
   onOpenTerms: () => void;
+  onOpenChangelog: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({ 
@@ -13,8 +14,34 @@ export const Header: React.FC<HeaderProps> = ({
   setActiveMenu, 
   onOpenAbout, 
   onOpenFeedback,
-  onOpenTerms 
+  onOpenTerms,
+  onOpenChangelog
 }) => {
+  const [checkingUpdate, setCheckingUpdate] = useState(false);
+
+  const handleCheckForUpdates = async () => {
+      setCheckingUpdate(true);
+      setActiveMenu(null);
+      
+      try {
+          const res = await fetch('https://api.github.com/repos/IRedDragonICY/resonote/releases/latest');
+          if (res.ok) {
+              const data = await res.json();
+              // In a real app, compare data.tag_name with package.json version
+              // For now, we open the release page to let user see
+              window.open(data.html_url, '_blank');
+          } else {
+              alert("Could not connect to GitHub to check for updates.");
+          }
+      } catch (e) {
+          console.error(e);
+          // Fallback
+          window.open('https://github.com/IRedDragonICY/resonote/releases', '_blank');
+      } finally {
+          setCheckingUpdate(false);
+      }
+  };
+
   return (
     <div className="fixed top-0 left-0 right-0 h-10 bg-[#1e1e1e] border-b border-black z-50 flex items-center justify-between px-4 select-none shadow-md">
       <div className="flex items-center gap-4">
@@ -53,6 +80,24 @@ export const Header: React.FC<HeaderProps> = ({
                       <>
                           <div className="fixed inset-0 z-40" onClick={() => setActiveMenu(null)} />
                           <div className="absolute top-full left-0 mt-2 w-56 bg-[#2B2B2B] rounded-lg shadow-2xl z-50 overflow-hidden flex flex-col py-2 animate-in fade-in zoom-in-95 duration-100 ring-1 ring-white/5">
+                              <button 
+                                  onClick={handleCheckForUpdates}
+                                  disabled={checkingUpdate}
+                                  className="text-left px-4 py-2.5 text-[13px] text-[#E3E3E3] hover:bg-[#3d3d3d] transition-colors flex items-center gap-3 w-full"
+                              >
+                                  <span className={`material-symbols-rounded text-[18px] text-md-sys-primary ${checkingUpdate ? 'animate-spin' : ''}`}>
+                                    {checkingUpdate ? 'sync' : 'update'}
+                                  </span>
+                                  {checkingUpdate ? 'Checking...' : 'Check for Updates'}
+                              </button>
+                              <button 
+                                  onClick={() => { onOpenChangelog(); setActiveMenu(null); }}
+                                  className="text-left px-4 py-2.5 text-[13px] text-[#E3E3E3] hover:bg-[#3d3d3d] transition-colors flex items-center gap-3"
+                              >
+                                  <span className="material-symbols-rounded text-[18px] text-md-sys-primary">history</span>
+                                  Changelog
+                              </button>
+                              <div className="h-px bg-white/10 my-1 mx-2"></div>
                               <button 
                                   onClick={() => { onOpenAbout(); setActiveMenu(null); }}
                                   className="text-left px-4 py-2.5 text-[13px] text-[#E3E3E3] hover:bg-[#3d3d3d] transition-colors flex items-center gap-3"

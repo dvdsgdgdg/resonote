@@ -24,6 +24,7 @@ const validateABCTool: Tool = {
 
 export const convertImageToABC = async (
   files: File[], 
+  prompt: string,
   model: string,
   onLog: (message: string, type?: 'info' | 'success' | 'warning' | 'thinking') => void,
   onStreamUpdate: (text: string) => void,
@@ -51,13 +52,20 @@ export const convertImageToABC = async (
     );
 
     // Configure Thinking based on Model Family
-    // Thinking Config is ONLY available for Gemini 2.5 series. Do not use for Gemini 3.
     let thinkingConfig = undefined;
     
     if (model.includes('2.5')) {
+        // Gemini 2.5 requires explicit thinking budget
         thinkingConfig = {
             includeThoughts: true,
             thinkingBudget: model.includes('flash') ? 24576 : 32768
+        };
+    } else if (model.includes('gemini-3')) {
+        // Gemini 3 uses dynamic thinking (default High). 
+        // We must set includeThoughts to true to receive the thought trace.
+        // We do NOT set thinkingBudget here to allow the model to manage its own reasoning depth (Dynamic).
+        thinkingConfig = {
+            includeThoughts: true
         };
     }
 
@@ -71,12 +79,23 @@ export const convertImageToABC = async (
       },
     });
 
-    onLog(`Scanning image for musical structures...`, 'thinking');
+    onLog(`Analyzing input...`, 'thinking');
+
+    // Construct the initial message
+    let instructionText = "Transcribe this sheet music to ABC notation (Standard 2.1). Be extremely precise with pitch, rhythm, and lyric alignment. Ensure strict syntax compliance.";
+
+    if (files.length === 0) {
+        // If no images, use the prompt as the main instruction
+        instructionText = prompt || instructionText;
+    } else if (prompt && prompt.trim() !== "") {
+        // If images exist, append user instructions
+        instructionText = `${instructionText}\n\nUser Instructions: ${prompt}`;
+    }
 
     // Initial Message parts
     let currentMessageParts: Part[] = [
         ...parts,
-        { text: "Transcribe this sheet music to ABC notation (Standard 2.1). Be extremely precise with pitch, rhythm, and lyric alignment. Ensure strict syntax compliance." }
+        { text: instructionText }
     ];
 
     let fullText = "";
@@ -85,7 +104,7 @@ export const convertImageToABC = async (
     const MAX_TURNS = 8; // Increased max turns to allow for corrections
 
     while (turnCount < MAX_TURNS) {
-        onLog(`Turn ${turnCount + 1}: Refining transcription...`, 'info');
+        onLog(`Turn ${turnCount + 1}: Generating...`, 'info');
         
         const result = await chat.sendMessageStream({ message: currentMessageParts });
         
@@ -117,7 +136,9 @@ export const convertImageToABC = async (
                         if (codeMatch) {
                             onStreamUpdate(cleanAbc(codeMatch[1]));
                         } else {
-                            if (fullText.includes("X:") || fullText.length > 50) {
+                            // If it's a chat response or partial ABC, still stream it to editor/log
+                            // If user is just chatting, show the text.
+                            if (fullText.includes("X:") || fullText.length > 5) {
                                 onStreamUpdate(cleanAbc(fullText));
                             }
                         }
@@ -185,7 +206,14 @@ export const convertImageToABC = async (
                     break; 
                 }
             } else {
-                currentMessageParts = [{ text: "Please generate the final ABC notation code block now." }];
+                // If the output doesn't look like ABC (maybe just chat), we can stop unless we want to force ABC
+                if (files.length === 0 && !fullText.includes("X:")) {
+                    // Chat mode, just finish
+                    finalAbc = fullText;
+                    onLog("Response received.", 'success');
+                    break;
+                }
+                currentMessageParts = [{ text: "Please generate the final ABC notation code block now. Start with X:1" }];
             }
         }
 

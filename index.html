@@ -88,37 +88,34 @@
       ::-webkit-scrollbar-thumb:hover {
         background: #555; 
       }
-      /* ABCJS Custom Styling for High Contrast on White Paper */
-      #paper svg {
-        fill: #121212 !important;
+      
+      /* ABCJS Custom Styling */
+      /* Force pure black on all elements to fix "gray" issue */
+      #paper {
+        color: #000000;
       }
-      #paper path {
-        fill: #121212 !important;
+      #paper svg text, #paper svg tspan, #paper svg path {
+        fill: #000000 !important;
       }
-      #paper .abcjs-note {
-        fill: #121212 !important;
-      }
-      #paper .abcjs-staff {
-        stroke: #121212 !important;
-      }
-      #paper .abcjs-staff-extra {
-        stroke: #121212 !important;
-      }
-      #paper .abcjs-lyric {
-        fill: #121212 !important;
-      }
-      #paper .abcjs-annotation {
-        fill: #121212 !important;
+      #paper svg path[stroke], #paper svg line, #paper svg .abcjs-staff, #paper svg .abcjs-staff-extra, #paper svg .abcjs-beam, #paper svg .abcjs-bar {
+        stroke: #000000 !important;
+        fill: none !important;
       }
       
-      /* Cursor and Highlight */
-      .highlight, .abcjs-highlight {
+      /* Explicitly handle note heads to ensure they are black */
+      #paper .abcjs-note {
+        fill: #000000 !important;
+      }
+
+      /* Cursor and Highlight - Must override the black checks above */
+      #paper svg .abcjs-highlight {
         fill: #0a9ecc !important;
       }
       
-      .abcjs-cursor {
+      #paper svg .abcjs-cursor {
         stroke: #0a9ecc !important;
         stroke-width: 2px;
+        fill: none !important;
       }
 
       /* ABCJS Audio Player CSS - Updated for larger touch targets and visibility */
@@ -287,6 +284,7 @@
     "react-dom/client": "https://aistudiocdn.com/react-dom@^19.2.0/client",
     "react-dom": "https://aistudiocdn.com/react-dom@^19.2.0",
     "abcjs": "https://aistudiocdn.com/abcjs@^6.5.2",
+    "jspdf": "https://esm.sh/jspdf@2.5.1",
     "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
     "@vercel/analytics/react": "https://esm.sh/@vercel/analytics@1.5.0/react?external=react,react-dom",
     "@vercel/analytics/": "https://aistudiocdn.com/@vercel/analytics@^1.5.0/"
