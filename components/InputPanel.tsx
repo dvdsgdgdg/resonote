@@ -2,6 +2,17 @@ import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { UploadFileState, LogEntry, GenerationState } from '../types';
 import { AVAILABLE_MODELS } from '../constants/models';
 import { AILogger } from './AILogger';
+import * as pdfjsLib from 'pdfjs-dist';
+
+// Initialize PDF.js worker
+// FIX: Handle potential default export structure from esm.sh
+const pdfjs = (pdfjsLib as any).default ?? pdfjsLib;
+
+if (pdfjs.GlobalWorkerOptions) {
+  // Use cdnjs for the worker to ensure it is loaded as a Classic Script (not Module),
+  // which prevents "Failed to execute 'importScripts'" and "WorkerMessageHandler" errors.
+  pdfjs.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+}
 
 interface InputPanelProps {
   files: UploadFileState[];
@@ -17,6 +28,178 @@ interface InputPanelProps {
   onGenerate: () => void;
   generation: GenerationState;
 }
+
+// --- Internal PDF Viewer Component ---
+const PdfViewer = ({ url }: { url: string }) => {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [pdf, setPdf] = useState<any>(null);
+  const [pageNum, setPageNum] = useState(1);
+  const [numPages, setNumPages] = useState(0);
+  const [scale, setScale] = useState(1.0); // Start at 100%
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // Load PDF Document
+  useEffect(() => {
+    let active = true;
+    const loadPdf = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        // Use the resolved pdfjs instance
+        const loadingTask = pdfjs.getDocument(url);
+        const loadedPdf = await loadingTask.promise;
+        if (active) {
+          setPdf(loadedPdf);
+          setNumPages(loadedPdf.numPages);
+          setLoading(false);
+        }
+      } catch (err: any) {
+        console.error("Error loading PDF", err);
+        if (active) {
+          setError(err.message || "Failed to load PDF.");
+          setLoading(false);
+        }
+      }
+    };
+    loadPdf();
+    return () => { active = false; };
+  }, [url]);
+
+  // Render Current Page
+  useEffect(() => {
+    if (!pdf || !canvasRef.current) return;
+    
+    let active = true;
+    const renderPage = async () => {
+      try {
+        const page = await pdf.getPage(pageNum);
+        if (!active) return;
+
+        const canvas = canvasRef.current!;
+        const context = canvas.getContext('2d');
+        if (!context) return;
+
+        const viewport = page.getViewport({ scale });
+
+        canvas.height = viewport.height;
+        canvas.width = viewport.width;
+
+        const renderContext = {
+          canvasContext: context,
+          viewport: viewport,
+        };
+
+        await page.render(renderContext).promise;
+      } catch (err) {
+        console.error("Error rendering page", err);
+      }
+    };
+    
+    renderPage();
+    return () => { active = false; };
+  }, [pdf, pageNum, scale]);
+
+  const changePage = (offset: number) => {
+    setPageNum(prev => Math.min(Math.max(1, prev + offset), numPages));
+  };
+
+  const handleZoom = (delta: number) => {
+      setScale(prev => {
+          const newScale = prev + delta;
+          return Math.max(0.25, Math.min(newScale, 5.0)); // Range 25% - 500%
+      });
+  };
+
+  if (loading) {
+      return (
+          <div className="w-full h-full flex items-center justify-center text-gray-400 gap-2">
+              <span className="material-symbols-rounded animate-spin">progress_activity</span>
+              Loading PDF...
+          </div>
+      );
+  }
+
+  if (error) {
+      return (
+          <div className="w-full h-full flex flex-col items-center justify-center text-red-400 gap-2">
+              <span className="material-symbols-rounded">broken_image</span>
+              <p>{error}</p>
+          </div>
+      );
+  }
+
+  return (
+      <div className="flex flex-col items-center w-full h-full">
+          {/* Scroll Container with Flex Centering Trick */}
+          <div className="flex-1 w-full overflow-auto bg-[#2B2B2B] rounded-t-lg custom-scrollbar relative">
+               <div className="min-h-full min-w-full flex items-center justify-center p-8">
+                    <canvas 
+                        ref={canvasRef} 
+                        className="shadow-2xl transition-all duration-100 ease-out bg-white block" 
+                        style={{ maxWidth: 'none', maxHeight: 'none' }}
+                    />
+               </div>
+          </div>
+          
+          {/* Controls */}
+          <div className="w-full bg-[#1E1E1E] p-3 border-t border-white/10 flex items-center justify-between rounded-b-lg shrink-0 z-10">
+              
+              {/* Zoom Controls */}
+              <div className="flex items-center gap-2">
+                  <button 
+                    onClick={() => handleZoom(-0.25)}
+                    className="p-1.5 rounded-full hover:bg-white/10 text-gray-400 hover:text-white transition-colors"
+                    title="Zoom Out"
+                  >
+                      <span className="material-symbols-rounded text-[20px]">remove</span>
+                  </button>
+                  <span className="text-xs font-mono text-gray-400 w-12 text-center select-none">
+                      {Math.round(scale * 100)}%
+                  </span>
+                  <button 
+                    onClick={() => handleZoom(0.25)}
+                    className="p-1.5 rounded-full hover:bg-white/10 text-gray-400 hover:text-white transition-colors"
+                    title="Zoom In"
+                  >
+                      <span className="material-symbols-rounded text-[20px]">add</span>
+                  </button>
+                  {/* Fit Width / Reset */}
+                  <button 
+                    onClick={() => setScale(1.0)}
+                    className="p-1.5 rounded-full hover:bg-white/10 text-gray-400 hover:text-white transition-colors ml-1"
+                    title="Reset Zoom (100%)"
+                  >
+                      <span className="material-symbols-rounded text-[18px]">center_focus_strong</span>
+                  </button>
+              </div>
+
+              {/* Page Info */}
+              <span className="text-sm font-mono text-gray-300 select-none">
+                  Page {pageNum} of {numPages}
+              </span>
+
+              {/* Navigation Controls */}
+              <div className="flex items-center gap-2">
+                <button 
+                    onClick={() => changePage(-1)}
+                    disabled={pageNum <= 1}
+                    className="p-1.5 rounded-full hover:bg-white/10 disabled:opacity-30 text-white transition-colors"
+                >
+                    <span className="material-symbols-rounded">chevron_left</span>
+                </button>
+                <button 
+                    onClick={() => changePage(1)}
+                    disabled={pageNum >= numPages}
+                    className="p-1.5 rounded-full hover:bg-white/10 disabled:opacity-30 text-white transition-colors"
+                >
+                    <span className="material-symbols-rounded">chevron_right</span>
+                </button>
+              </div>
+          </div>
+      </div>
+  );
+};
 
 export const InputPanel: React.FC<InputPanelProps> = ({
   files,
@@ -144,6 +327,8 @@ export const InputPanel: React.FC<InputPanelProps> = ({
 
   const currentModelName = AVAILABLE_MODELS.find(m => m.id === selectedModel)?.name || selectedModel;
 
+  const isPdf = (file: File) => file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+
   return (
     <div className="flex flex-col gap-4">
         {/* Composer Container */}
@@ -186,7 +371,7 @@ export const InputPanel: React.FC<InputPanelProps> = ({
                                 }
                             `}
                         >
-                            {file.file.type === 'application/pdf' || file.file.name.toLowerCase().endsWith('.pdf') ? (
+                            {isPdf(file.file) ? (
                                 <div className="w-full h-full bg-[#2a1b1b] flex flex-col items-center justify-center p-2 transition-colors group-hover/file:bg-[#3d2424]">
                                     <span className="material-symbols-rounded text-red-400 text-3xl">picture_as_pdf</span>
                                 </div>
@@ -330,13 +515,12 @@ export const InputPanel: React.FC<InputPanelProps> = ({
                     className="w-full h-full max-w-6xl max-h-[90vh] flex flex-col items-center gap-4 relative animate-in zoom-in-95 duration-200" 
                     onClick={e => e.stopPropagation()}
                 >
-                    {previewFile.file.type === 'application/pdf' || previewFile.file.name.toLowerCase().endsWith('.pdf') ? (
-                        <div className="w-full h-full bg-[#1E1E1E] rounded-lg overflow-hidden border border-white/10 shadow-2xl">
-                            <embed 
-                                src={previewFile.preview} 
-                                type="application/pdf" 
-                                className="w-full h-full"
-                            />
+                    {isPdf(previewFile.file) ? (
+                        <div className="w-full h-full bg-[#1E1E1E] rounded-lg overflow-hidden border border-white/10 shadow-2xl relative group flex flex-col">
+                            {/* Use PDFJS Renderer for consistent inline experience */}
+                            <div className="flex-1 min-h-0 bg-[#2B2B2B]">
+                                <PdfViewer url={previewFile.preview} />
+                            </div>
                         </div>
                     ) : (
                         <img 
@@ -346,7 +530,7 @@ export const InputPanel: React.FC<InputPanelProps> = ({
                         />
                     )}
                     
-                    <div className="text-center px-4 py-2 bg-black/50 backdrop-blur-sm rounded-full border border-white/5 absolute bottom-4">
+                    <div className="text-center px-4 py-2 bg-black/50 backdrop-blur-sm rounded-full border border-white/5 absolute bottom-4 pointer-events-none">
                         <p className="text-white font-medium text-sm">{previewFile.file.name}</p>
                         <p className="text-gray-400 text-xs mt-0.5">
                             {(previewFile.file.size / 1024).toFixed(1)} KB • {previewFile.file.type || 'application/pdf'}
