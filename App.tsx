@@ -8,6 +8,7 @@ import { AboutModal } from './components/modals/AboutModal';
 import { FeedbackModal } from './components/modals/FeedbackModal';
 import { TermsModal } from './components/modals/TermsModal';
 import { ChangelogModal } from './components/modals/ChangelogModal';
+import { ConfirmationModal } from './components/modals/ConfirmationModal';
 import { convertImageToABC } from './services/geminiService';
 import { Session, GenerationState, LogEntry } from './types';
 import { DEFAULT_ABC } from './constants/defaults';
@@ -41,6 +42,9 @@ export default function App() {
   const [showFeedback, setShowFeedback] = useState(false);
   const [showTerms, setShowTerms] = useState(false);
   const [showChangelog, setShowChangelog] = useState(false);
+  
+  // Delete Confirmation State
+  const [sessionToDelete, setSessionToDelete] = useState<string | null>(null);
 
   // Refs
   const sessionRefs = useRef<Map<string, MusicDisplayHandle>>(new Map());
@@ -132,15 +136,24 @@ export default function App() {
     setActiveTabId(id);
   };
 
-  const deleteSession = (id: string) => {
-      if (window.confirm("Are you sure you want to permanently delete this project? This cannot be undone.")) {
-          setSessions(prev => prev.filter(s => s.id !== id));
-          sessionRefs.current.delete(id);
-          if (activeTabId === id) {
-              setActiveTabId('home');
-          }
+  const requestDeleteSession = useCallback((id: string) => {
+    setSessionToDelete(id);
+  }, []);
+
+  const confirmDeleteSession = useCallback(() => {
+      if (!sessionToDelete) return;
+
+      setSessions(prev => {
+          const newSessions = prev.filter(s => s.id !== sessionToDelete);
+          return newSessions;
+      });
+      sessionRefs.current.delete(sessionToDelete);
+      
+      if (activeTabId === sessionToDelete) {
+          setActiveTabId('home');
       }
-  };
+      setSessionToDelete(null);
+  }, [sessionToDelete, activeTabId]);
 
   const updateSession = useCallback((id: string, updates: Partial<Session['data']>) => {
     setSessions(prev => prev.map(s => {
@@ -418,7 +431,7 @@ export default function App() {
                 sessions={sessions} 
                 onOpenSession={handleOpenSession} 
                 onNewSession={() => createNewSession()} 
-                onDeleteSession={deleteSession}
+                onDeleteSession={requestDeleteSession}
                 onExportSession={handleExportFromHome}
              />
         </div>
@@ -456,6 +469,15 @@ export default function App() {
       <FeedbackModal isOpen={showFeedback} onClose={() => setShowFeedback(false)} />
       <TermsModal isOpen={showTerms} onClose={() => setShowTerms(false)} />
       <ChangelogModal isOpen={showChangelog} onClose={() => setShowChangelog(false)} />
+      <ConfirmationModal 
+          isOpen={!!sessionToDelete}
+          onClose={() => setSessionToDelete(null)}
+          onConfirm={confirmDeleteSession}
+          title="Delete Project?"
+          message="Are you sure you want to permanently delete this project? This action cannot be undone."
+          confirmLabel="Delete"
+          isDestructive={true}
+      />
 
     </div>
   );

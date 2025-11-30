@@ -30,6 +30,7 @@ export const HomeView: React.FC<HomeViewProps> = ({ sessions, onOpenSession, onN
 
   const handleExportClick = (e: React.MouseEvent, sessionId: string) => {
       e.stopPropagation();
+      e.preventDefault();
       const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
       // Calculate position relative to viewport for fixed positioning
       // We align it to the bottom-left of the button, or right-aligned
@@ -118,15 +119,21 @@ export const HomeView: React.FC<HomeViewProps> = ({ sessions, onOpenSession, onN
                             return (
                                 <div 
                                     key={session.id}
-                                    onClick={() => onOpenSession(session.id)}
-                                    className="group relative aspect-[3/4] bg-[#1E1E1E] rounded-xl border border-white/5 hover:border-md-sys-primary/50 overflow-hidden cursor-pointer transition-all hover:-translate-y-1 hover:shadow-xl"
+                                    className="group relative aspect-[3/4] bg-[#1E1E1E] rounded-xl border border-white/5 hover:border-md-sys-primary/50 overflow-hidden transition-all hover:-translate-y-1 hover:shadow-xl"
                                 >
-                                    {/* Preview Area */}
+                                    {/* 1. Click Overlay (Z-10) - Handles Opening */}
+                                    <div 
+                                        className="absolute inset-0 z-10 cursor-pointer"
+                                        onClick={() => onOpenSession(session.id)}
+                                        title={`Open ${session.title}`}
+                                    />
+
+                                    {/* 2. Visual Content (Behind Actions) */}
                                     <div className="h-2/3 bg-[#151515] p-0 flex items-center justify-center overflow-hidden relative">
                                         {/* Abstract background pattern */}
-                                        <div className="absolute inset-0 opacity-20" style={{ backgroundImage: 'radial-gradient(#444 1px, transparent 1px)', backgroundSize: '10px 10px' }}></div>
+                                        <div className="absolute inset-0 opacity-20 pointer-events-none" style={{ backgroundImage: 'radial-gradient(#444 1px, transparent 1px)', backgroundSize: '10px 10px' }}></div>
                                         
-                                        <div className="w-full h-full flex items-center justify-center bg-white/5">
+                                        <div className="w-full h-full flex items-center justify-center bg-white/5 pointer-events-none">
                                             {session.data.thumbnail ? (
                                                 <div className="w-full h-full p-2">
                                                     <div className="w-full h-full bg-white rounded overflow-hidden shadow-lg">
@@ -150,8 +157,8 @@ export const HomeView: React.FC<HomeViewProps> = ({ sessions, onOpenSession, onN
                                             )}
                                         </div>
 
-                                        {/* Actions Overlay */}
-                                        <div className="absolute top-2 right-2 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+                                        {/* 3. Actions Overlay (Z-30) - Sits above Open Overlay */}
+                                        <div className="absolute top-2 right-2 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity z-30">
                                             <button 
                                                 onClick={(e) => handleExportClick(e, session.id)}
                                                 className={`p-1.5 bg-black/60 hover:bg-md-sys-primary text-white/70 hover:text-black rounded-full backdrop-blur-sm transition-all duration-200 hover:scale-105 ${exportMenu?.id === session.id ? 'opacity-100 bg-md-sys-primary text-black' : ''}`}
@@ -162,6 +169,7 @@ export const HomeView: React.FC<HomeViewProps> = ({ sessions, onOpenSession, onN
                                             <button 
                                                 onClick={(e) => {
                                                     e.stopPropagation();
+                                                    e.preventDefault();
                                                     onDeleteSession(session.id);
                                                 }}
                                                 className="p-1.5 bg-black/60 hover:bg-md-sys-error text-white/70 hover:text-white rounded-full backdrop-blur-sm transition-all duration-200 hover:scale-105"
@@ -172,8 +180,8 @@ export const HomeView: React.FC<HomeViewProps> = ({ sessions, onOpenSession, onN
                                         </div>
                                     </div>
                                     
-                                    {/* Meta Area */}
-                                    <div className="h-1/3 p-4 flex flex-col justify-between bg-[#1E1E1E] border-t border-white/5">
+                                    {/* Meta Area - Pointer events pass through to Z-10 overlay */}
+                                    <div className="h-1/3 p-4 flex flex-col justify-between bg-[#1E1E1E] border-t border-white/5 pointer-events-none">
                                         <div>
                                             <h3 className="text-sm font-medium text-white truncate group-hover:text-md-sys-primary transition-colors">
                                                 {session.title || "Untitled Project"}
@@ -267,6 +275,7 @@ export const HomeView: React.FC<HomeViewProps> = ({ sessions, onOpenSession, onN
                                          <button 
                                             onClick={(e) => {
                                                 e.stopPropagation();
+                                                e.preventDefault();
                                                 onDeleteSession(session.id);
                                             }}
                                             className="p-1.5 hover:bg-md-sys-error/20 text-gray-500 hover:text-md-sys-error rounded-md transition-colors opacity-0 group-hover:opacity-100"
