@@ -1,16 +1,19 @@
+
 import React, { useEffect, useRef, useImperativeHandle, useCallback, useState } from 'react';
 import abcjs from 'abcjs';
-import { jsPDF } from 'jspdf';
+import { MusicToolbar } from './music/MusicToolbar';
+import { exportMusic } from '../utils/exportHandler';
 
 interface MusicDisplayProps {
   abcNotation: string;
   warningId?: string;
   textareaId: string;
   onThumbnailGenerated?: (base64: string) => void;
+  zoomLevel?: number;
 }
 
 export interface MusicDisplayHandle {
-  exportFile: (type: 'png' | 'pdf' | 'midi' | 'wav' | 'mp3') => void;
+  exportFile: (type: 'png' | 'jpg' | 'webp' | 'svg' | 'pdf' | 'doc' | 'midi' | 'wav' | 'mp3') => void;
 }
 
 interface VoiceInfo {
@@ -22,7 +25,8 @@ export const MusicDisplay = React.forwardRef<MusicDisplayHandle, MusicDisplayPro
   abcNotation, 
   warningId, 
   textareaId,
-  onThumbnailGenerated
+  onThumbnailGenerated,
+  zoomLevel = 1.0
 }, ref) => {
   // Use stable IDs for the DOM elements
   const uniqueId = useRef(Math.random().toString(36).substr(2, 9)).current;
@@ -38,7 +42,6 @@ export const MusicDisplay = React.forwardRef<MusicDisplayHandle, MusicDisplayPro
   const [voices, setVoices] = useState<VoiceInfo[]>([]);
   const [muted, setMuted] = useState<Set<number>>(new Set());
   const [solos, setSolos] = useState<Set<number>>(new Set());
-  const [showMixer, setShowMixer] = useState(false);
   
   // Stable ref for the callback to prevent re-triggering effects on prop changes
   const onThumbnailGeneratedRef = useRef(onThumbnailGenerated);
@@ -377,226 +380,22 @@ export const MusicDisplay = React.forwardRef<MusicDisplayHandle, MusicDisplayPro
   }, [paperId, generateThumbnail]);
 
 
-  const handleExport = async (type: 'png' | 'pdf' | 'midi' | 'wav' | 'mp3') => {
-      const svg = document.querySelector(`#${paperId} svg`);
-      // Only require SVG for visual export. Audio/MIDI uses the data directly.
-      if (!svg && type !== 'midi' && type !== 'wav' && type !== 'mp3') return;
-
+  const handleExport = async (type: 'png' | 'jpg' | 'webp' | 'svg' | 'pdf' | 'doc' | 'midi' | 'wav' | 'mp3') => {
       if (exportingState) return;
       setExportingState(type);
 
       try {
-        if (type === 'png') {
-            const svgData = new XMLSerializer().serializeToString(svg!);
-            const canvas = document.createElement('canvas');
-            const img = new Image();
-            const svgEl = svg as SVGElement;
-            
-            // Get dimensions, using fallback for hidden tabs
-            let rect = svgEl.getBoundingClientRect();
-            let width = rect.width;
-            let height = rect.height;
-            
-            if (width === 0) {
-                const viewBox = svgEl.getAttribute('viewBox');
-                if (viewBox) {
-                    const parts = viewBox.split(' ').map(parseFloat);
-                    if (parts.length === 4) {
-                        width = parts[2];
-                        height = parts[3];
-                    }
-                }
-            }
-            if (width === 0) { width = 595; height = 842; }
-
-            img.onload = () => {
-                // High resolution export
-                canvas.width = width * 2;
-                canvas.height = height * 2;
-                const ctx = canvas.getContext('2d');
-                if(ctx) {
-                    ctx.fillStyle = "#FFFFFF";
-                    ctx.fillRect(0,0, canvas.width, canvas.height);
-                    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-                    const a = document.createElement('a');
-                    a.href = canvas.toDataURL('image/png');
-                    a.download = 'sheet_music.png';
-                    a.click();
-                }
-            };
-            img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgData)));
-        } 
-        else if (type === 'pdf') {
-            const svgData = new XMLSerializer().serializeToString(svg!);
-            const img = new Image();
-            const svgEl = svg as SVGElement;
-            
-            let rect = svgEl.getBoundingClientRect();
-            let width = rect.width;
-            let height = rect.height;
-
-            if (width === 0) {
-                const viewBox = svgEl.getAttribute('viewBox');
-                if (viewBox) {
-                    const parts = viewBox.split(' ').map(parseFloat);
-                    if (parts.length === 4) {
-                        width = parts[2];
-                        height = parts[3];
-                    }
-                }
-            }
-            if (width === 0) { width = 595; height = 842; }
-
-            img.onload = () => {
-                // Create PDF matching the aspect ratio
-                const doc = new jsPDF({
-                    orientation: width > height ? 'l' : 'p',
-                    unit: 'px',
-                    format: [width + 40, height + 40]
-                });
-                
-                const canvas = document.createElement('canvas');
-                canvas.width = width * 2;
-                canvas.height = height * 2;
-                const ctx = canvas.getContext('2d');
-                if(ctx) {
-                    ctx.fillStyle = "#FFFFFF";
-                    ctx.fillRect(0,0, canvas.width, canvas.height);
-                    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-                    const imgData = canvas.toDataURL('image/jpeg', 0.95);
-                    doc.addImage(imgData, 'JPEG', 20, 20, width, height);
-                    doc.save('sheet_music.pdf');
-                }
-            };
-            img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgData)));
-        }
-        else if (type === 'midi') {
-            const midi = abcjs.synth.getMidiFile(abcNotation, { midiOutputType: 'link' });
-            if(midi && midi.length > 0) {
-                const a = document.createElement('a');
-                a.href = midi[0].href;
-                a.download = 'music.midi';
-                a.click();
-            }
-        }
-        else if (type === 'wav' || type === 'mp3') {
-            try {
-                // 1. Try to use the live editor visual object first
-                let visualObj = editorRef.current?.tunes?.[0];
-
-                // 2. Fallback: Render headless if necessary
-                if (!visualObj) {
-                    const div = document.createElement("div");
-                    div.style.width = "1024px"; 
-                    div.style.height = "1024px";
-                    const visualObjs = abcjs.renderAbc(div, abcNotation, {
-                        responsive: 'resize',
-                        add_classes: true,
-                        visualTranspose: 0 
-                    });
-                    visualObj = visualObjs[0];
-                }
-
-                if (!visualObj) {
-                    throw new Error("Could not parse music data.");
-                }
-
-                // 3. Initialize Synth
-                const synth = new abcjs.synth.CreateSynth();
-                await synth.init({ 
-                    visualObj: visualObj,
-                    options: {
-                        soundFontUrl: "https://paulrosen.github.io/midi-js-soundfonts/FluidR3_GM/"
-                    }
-                });
-                
-                await synth.prime();
-
-                // 4. Handle Export
-                if (type === 'wav') {
-                     const audioUrl = (synth as any).download();
-                     if (audioUrl && typeof audioUrl === 'string') {
-                         const a = document.createElement('a');
-                         a.href = audioUrl;
-                         a.download = 'composition.wav';
-                         document.body.appendChild(a);
-                         a.click();
-                         document.body.removeChild(a);
-                         setTimeout(() => window.URL.revokeObjectURL(audioUrl), 5000);
-                     }
-                } else if (type === 'mp3') {
-                    // 5. Handle MP3 Conversion
-                    if (!(window as any).lamejs) {
-                         throw new Error("MP3 Encoder library not loaded.");
-                    }
-
-                    const buffer = (synth as any).getAudioBuffer();
-                    if (!buffer) throw new Error("No audio buffer generated.");
-
-                    const mp3Data = convertBufferToMp3(buffer);
-                    const blob = new Blob(mp3Data, { type: 'audio/mp3' });
-                    const url = window.URL.createObjectURL(blob);
-                    
-                    const a = document.createElement('a');
-                    a.href = url;
-                    a.download = 'composition.mp3';
-                    document.body.appendChild(a);
-                    a.click();
-                    document.body.removeChild(a);
-                    setTimeout(() => window.URL.revokeObjectURL(url), 5000);
-                }
-
-            } catch (err: any) {
-                console.error("Audio Export Failed:", err);
-                alert("Could not generate audio file. " + (err.message || "Unknown error"));
-            }
-        }
+        await exportMusic(type, {
+            abcNotation,
+            paperId,
+            editorInstance: editorRef.current
+        });
       } catch (e: any) {
         console.error("Export error", e);
         alert("Export failed: " + e.message);
       } finally {
         setExportingState(null);
       }
-  };
-
-  const convertBufferToMp3 = (buffer: AudioBuffer) => {
-    const lamejs = (window as any).lamejs;
-    const channels = buffer.numberOfChannels;
-    const sampleRate = buffer.sampleRate;
-    const kbps = 128;
-    const mp3encoder = new lamejs.Mp3Encoder(channels, sampleRate, kbps);
-    const mp3Data = [];
-
-    // Helper: Float32 to Int16
-    const convert = (input: Float32Array) => {
-        const output = new Int16Array(input.length);
-        for (let i = 0; i < input.length; i++) {
-             const s = Math.max(-1, Math.min(1, input[i]));
-             output[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
-        }
-        return output;
-    };
-
-    const left = convert(buffer.getChannelData(0));
-    const right = channels > 1 ? convert(buffer.getChannelData(1)) : undefined;
-    
-    // Encode in chunks
-    const sampleBlockSize = 1152;
-    for (let i = 0; i < left.length; i += sampleBlockSize) {
-        const leftChunk = left.subarray(i, i + sampleBlockSize);
-        const rightChunk = right ? right.subarray(i, i + sampleBlockSize) : undefined;
-        
-        const mp3buf = mp3encoder.encodeBuffer(leftChunk, rightChunk || leftChunk);
-        if (mp3buf.length > 0) {
-            mp3Data.push(mp3buf);
-        }
-    }
-    
-    const mp3buf = mp3encoder.flush();
-    if (mp3buf.length > 0) {
-        mp3Data.push(mp3buf);
-    }
-    return mp3Data;
   };
 
   useImperativeHandle(ref, () => ({
@@ -623,116 +422,24 @@ export const MusicDisplay = React.forwardRef<MusicDisplayHandle, MusicDisplayPro
 
   return (
     <div className="w-full h-full flex flex-col bg-white text-black relative">
-        {/* Toolbar Container - Column Layout for better spacing */}
-        <div className="flex flex-col border-b border-md-sys-outline/10 bg-md-sys-surfaceVariant/5 z-10">
-            
-            {/* Row 1: Audio Player (Full Width) */}
-            <div className="w-full px-4 py-2 border-b border-black/5">
-                 <div id={audioId} className="w-full min-h-[40px] flex items-center justify-center">
-                     {/* Audio controls render here automatically by abcjs */}
-                 </div>
-            </div>
-            
-            {/* Row 2: Menu Controls (Right Aligned) */}
-            <div className="flex items-center justify-end px-4 py-2 gap-1">
-                {voices.length > 0 && (
-                    <div className="relative">
-                        <button 
-                            onClick={() => setShowMixer(!showMixer)}
-                            className={`p-2 rounded transition-colors flex items-center gap-2 ${showMixer ? 'bg-md-sys-primary text-white' : 'hover:bg-black/5 text-md-sys-secondary hover:text-black'}`}
-                            title="Audio Mixer"
-                        >
-                            <span className="material-symbols-rounded text-lg">tune</span>
-                        </button>
+        <MusicToolbar 
+            audioId={audioId}
+            voices={voices}
+            muted={muted}
+            solos={solos}
+            onToggleMute={toggleMute}
+            onToggleSolo={toggleSolo}
+            onExport={handleExport}
+            exportingState={exportingState}
+        />
 
-                        {/* Mixer Popover */}
-                        {showMixer && (
-                            <div className="absolute top-full right-0 mt-2 w-64 bg-[#1E1E1E] rounded-xl shadow-2xl border border-white/10 overflow-hidden z-[100] animate-in fade-in zoom-in-95 duration-100 text-white">
-                                <div className="px-4 py-3 border-b border-white/10 bg-[#252525] flex justify-between items-center">
-                                    <h4 className="text-xs font-bold uppercase tracking-wider text-gray-400">Mixer</h4>
-                                    <span className="text-[10px] bg-black/30 px-2 py-0.5 rounded-full text-gray-500">{voices.length} Tracks</span>
-                                </div>
-                                <div className="max-h-64 overflow-y-auto p-2">
-                                    {voices.map(v => {
-                                        const isMuted = muted.has(v.id);
-                                        const isSolo = solos.has(v.id);
-                                        const isImplicitlyMuted = solos.size > 0 && !isSolo;
-
-                                        return (
-                                            <div key={v.id} className={`flex items-center justify-between p-2 rounded-lg mb-1 ${isImplicitlyMuted ? 'opacity-50' : ''} hover:bg-white/5 transition-all`}>
-                                                <span className="text-xs font-medium truncate flex-1 mr-2 text-gray-300" title={v.name}>{v.name}</span>
-                                                <div className="flex items-center gap-1">
-                                                    <button 
-                                                        onClick={() => toggleMute(v.id)}
-                                                        className={`w-6 h-6 rounded flex items-center justify-center text-[10px] font-bold transition-colors ${isMuted ? 'bg-red-500 text-white' : 'bg-white/10 text-gray-400 hover:bg-white/20 hover:text-white'}`}
-                                                        title="Mute"
-                                                    >
-                                                        M
-                                                    </button>
-                                                    <button 
-                                                        onClick={() => toggleSolo(v.id)}
-                                                        className={`w-6 h-6 rounded flex items-center justify-center text-[10px] font-bold transition-colors ${isSolo ? 'bg-yellow-500 text-black' : 'bg-white/10 text-gray-400 hover:bg-white/20 hover:text-white'}`}
-                                                        title="Solo"
-                                                    >
-                                                        S
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-                            </div>
-                        )}
-                    </div>
-                )}
-
-                <div className="w-px h-6 bg-black/10 mx-1"></div>
-
-                <button 
-                    onClick={() => handleExport('png')} 
-                    disabled={!!exportingState}
-                    className="p-2 hover:bg-black/5 rounded text-md-sys-secondary hover:text-black transition-colors disabled:opacity-50" 
-                    title="Export PNG"
-                >
-                    {exportingState === 'png' ? <span className="material-symbols-rounded text-lg animate-spin">progress_activity</span> : <span className="material-symbols-rounded text-lg">image</span>}
-                </button>
-                <button 
-                    onClick={() => handleExport('pdf')} 
-                    disabled={!!exportingState}
-                    className="p-2 hover:bg-black/5 rounded text-md-sys-secondary hover:text-black transition-colors disabled:opacity-50" 
-                    title="Export PDF"
-                >
-                    {exportingState === 'pdf' ? <span className="material-symbols-rounded text-lg animate-spin">progress_activity</span> : <span className="material-symbols-rounded text-lg">picture_as_pdf</span>}
-                </button>
-                 <button 
-                    onClick={() => handleExport('midi')} 
-                    disabled={!!exportingState}
-                    className="p-2 hover:bg-black/5 rounded text-md-sys-secondary hover:text-black transition-colors disabled:opacity-50" 
-                    title="Download MIDI"
-                >
-                    {exportingState === 'midi' ? <span className="material-symbols-rounded text-lg animate-spin">progress_activity</span> : <span className="material-symbols-rounded text-lg">piano</span>}
-                </button>
-                <button 
-                    onClick={() => handleExport('wav')} 
-                    disabled={!!exportingState}
-                    className="p-2 hover:bg-black/5 rounded text-md-sys-secondary hover:text-black transition-colors disabled:opacity-50" 
-                    title="Download Audio (.wav)"
-                >
-                    {exportingState === 'wav' ? <span className="material-symbols-rounded text-lg animate-spin">progress_activity</span> : <span className="material-symbols-rounded text-lg">headphones</span>}
-                </button>
-                <button 
-                    onClick={() => handleExport('mp3')} 
-                    disabled={!!exportingState}
-                    className="p-2 hover:bg-black/5 rounded text-md-sys-secondary hover:text-black transition-colors disabled:opacity-50" 
-                    title="Download Audio (.mp3)"
-                >
-                    {exportingState === 'mp3' ? <span className="material-symbols-rounded text-lg animate-spin">progress_activity</span> : <span className="material-symbols-rounded text-lg">music_note</span>}
-                </button>
-            </div>
-        </div>
-
-        <div className="flex-1 overflow-auto p-4 custom-scrollbar relative bg-white" onClick={() => setShowMixer(false)}>
-             <div id={paperId} className="w-full min-h-full" />
+        <div className="flex-1 overflow-auto p-4 custom-scrollbar relative bg-white">
+             {/* Music Paper with scaling support */}
+             <div 
+                id={paperId} 
+                className="w-full min-h-full transition-transform duration-200 ease-out origin-top-left" 
+                style={{ transform: `scale(${zoomLevel})`, transformOrigin: 'top left' }}
+             />
              {(!abcNotation) && (
                 <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-30">
                      <div className="text-center text-md-sys-secondary">

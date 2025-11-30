@@ -19,11 +19,22 @@ import { transposeABC } from './utils/abcTransposer';
 // Bumped version to v2 to force load new DEFAULT_ABC with multi-tracks
 const STORAGE_KEY = 'resonote_sessions_v2';
 
+export interface ViewSettings {
+  showSidebar: boolean;
+  zoomLevel: number;
+}
+
 export default function App() {
   // --- State Management ---
   const [sessions, setSessions] = useState<Session[]>([]);
   const [activeTabId, setActiveTabId] = useState<string | 'home'>('home');
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
+  
+  // View Settings (Global for simplicity, keeps UI consistent across tabs)
+  const [viewSettings, setViewSettings] = useState<ViewSettings>({
+    showSidebar: true,
+    zoomLevel: 1.0
+  });
   
   // Modals
   const [showAbout, setShowAbout] = useState(false);
@@ -79,7 +90,7 @@ export default function App() {
 
   useEffect(() => {
     window.dispatchEvent(new Event('resize'));
-  }, [activeTabId]);
+  }, [activeTabId, viewSettings.showSidebar]); // Trigger resize when layout changes
 
   // --- Session Helpers ---
 
@@ -173,6 +184,22 @@ export default function App() {
 
       const transposedABC = transposeABC(session.data.abc, semitones);
       updateSession(sessionId, { abc: transposedABC });
+  };
+
+  // --- View Handlers ---
+  const handleToggleSidebar = () => {
+    setViewSettings(prev => ({ ...prev, showSidebar: !prev.showSidebar }));
+  };
+
+  const handleZoom = (delta: number) => {
+    setViewSettings(prev => ({ 
+      ...prev, 
+      zoomLevel: Math.max(0.5, Math.min(2.0, prev.zoomLevel + delta)) 
+    }));
+  };
+
+  const handleResetZoom = () => {
+    setViewSettings(prev => ({ ...prev, zoomLevel: 1.0 }));
   };
 
   // --- Generation Logic ---
@@ -294,7 +321,7 @@ export default function App() {
     }
   };
 
-  const handleExport = (type: 'png' | 'pdf' | 'midi' | 'wav' | 'mp3' | 'abc' | 'txt') => {
+  const handleExport = (type: 'png' | 'jpg' | 'webp' | 'svg' | 'pdf' | 'doc' | 'midi' | 'wav' | 'mp3' | 'abc' | 'txt') => {
     if (activeTabId === 'home') return;
 
     if (type === 'abc' || type === 'txt') {
@@ -319,7 +346,7 @@ export default function App() {
     }
   };
 
-  const handleExportFromHome = (sessionId: string, type: 'png' | 'pdf' | 'midi' | 'wav' | 'mp3' | 'abc' | 'txt') => {
+  const handleExportFromHome = (sessionId: string, type: 'png' | 'jpg' | 'webp' | 'svg' | 'pdf' | 'doc' | 'midi' | 'wav' | 'mp3' | 'abc' | 'txt') => {
     const session = sessions.find(s => s.id === sessionId);
     if (!session) return;
 
@@ -368,6 +395,10 @@ export default function App() {
         onOpenChangelog={() => setShowChangelog(true)}
         onImport={handleImportClick}
         onExport={handleExport}
+        viewSettings={viewSettings}
+        onToggleSidebar={handleToggleSidebar}
+        onZoom={handleZoom}
+        onResetZoom={handleResetZoom}
       />
 
       <TabBar 
@@ -408,6 +439,7 @@ export default function App() {
                     onImport={handleImportClick}
                     onExport={() => handleExport('abc')}
                     onTranspose={(st) => handleTranspose(session.id, st)}
+                    viewSettings={viewSettings}
                 />
             </div>
         ))}

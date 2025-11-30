@@ -4,6 +4,7 @@ import { MusicDisplay, MusicDisplayHandle } from './MusicDisplay';
 import { Editor } from './Editor';
 import { InputPanel } from './InputPanel';
 import { Session, UploadFileState } from '../types';
+import { ViewSettings } from '../App';
 
 interface WorkspaceProps {
   session: Session;
@@ -13,6 +14,7 @@ interface WorkspaceProps {
   onImport: () => void;
   onExport: () => void;
   onTranspose: (semitones: number) => void;
+  viewSettings: ViewSettings;
 }
 
 export const Workspace: React.FC<WorkspaceProps> = ({ 
@@ -22,7 +24,8 @@ export const Workspace: React.FC<WorkspaceProps> = ({
   musicDisplayRef,
   onImport,
   onExport,
-  onTranspose
+  onTranspose,
+  viewSettings
 }) => {
   const { data } = session;
   const EDITOR_TEXTAREA_ID = `abc-source-textarea-${session.id}`;
@@ -56,10 +59,13 @@ export const Workspace: React.FC<WorkspaceProps> = ({
   };
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 h-full">
+    <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 h-full transition-all duration-300 ease-in-out">
       
       {/* Left Column: Input & Editor */}
-      <div className="lg:col-span-5 flex flex-col gap-4 h-full overflow-y-auto pr-1">
+      <div className={`
+          flex flex-col gap-4 h-full overflow-y-auto pr-1 transition-all duration-300 ease-in-out
+          ${viewSettings.showSidebar ? 'lg:col-span-5 opacity-100 translate-x-0' : 'hidden opacity-0 -translate-x-full w-0'}
+      `}>
         
         {/* Input Panel */}
         <InputPanel 
@@ -92,7 +98,10 @@ export const Workspace: React.FC<WorkspaceProps> = ({
       </div>
 
       {/* Right Column: Visualization */}
-      <div className="lg:col-span-7 h-full flex flex-col pb-4">
+      <div className={`
+          h-full flex flex-col pb-4 transition-all duration-300 ease-in-out
+          ${viewSettings.showSidebar ? 'lg:col-span-7' : 'lg:col-span-12'}
+      `}>
          <div className="flex-1 bg-md-sys-surface rounded-2xl border border-md-sys-outline/20 overflow-hidden relative shadow-2xl">
              <MusicDisplay 
                ref={musicDisplayRef}
@@ -100,6 +109,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({
                warningId={WARNING_ID} 
                textareaId={EDITOR_TEXTAREA_ID}
                onThumbnailGenerated={(base64) => onUpdateSession(session.id, { thumbnail: base64 })}
+               zoomLevel={viewSettings.zoomLevel}
              />
          </div>
       </div>

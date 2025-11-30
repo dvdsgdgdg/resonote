@@ -1,7 +1,8 @@
+
 import React, { useState } from 'react';
 import { Session } from '../types';
 
-type ExportType = 'png' | 'pdf' | 'midi' | 'wav' | 'mp3' | 'abc' | 'txt';
+type ExportType = 'png' | 'jpg' | 'webp' | 'svg' | 'pdf' | 'doc' | 'midi' | 'wav' | 'mp3' | 'abc' | 'txt';
 
 interface HomeViewProps {
   sessions: Session[];
@@ -286,7 +287,7 @@ export const HomeView: React.FC<HomeViewProps> = ({ sessions, onOpenSession, onN
       {/* Floating Export Menu (Portal-like behavior via fixed position) */}
       {exportMenu && (
           <div 
-             className="fixed z-50 bg-[#2B2B2B] rounded-lg shadow-2xl py-2 w-56 ring-1 ring-white/10 animate-in fade-in zoom-in-95 duration-100"
+             className="fixed z-50 bg-[#2B2B2B] rounded-lg shadow-2xl py-2 w-56 ring-1 ring-white/10 animate-in fade-in zoom-in-95 duration-100 overflow-hidden"
              style={{ top: exportMenu.top, right: exportMenu.right }}
              onClick={(e) => e.stopPropagation()} // Prevent closing when clicking inside
           >
@@ -312,7 +313,8 @@ export const HomeView: React.FC<HomeViewProps> = ({ sessions, onOpenSession, onN
 
              <div className="h-px bg-white/10 my-1 mx-2"></div>
 
-             {/* Visual/Audio Formats */}
+             {/* Documents */}
+             <div className="px-3 py-1 mt-1 text-[10px] font-bold text-gray-500 uppercase tracking-wider">Documents</div>
              <button 
                  onClick={() => { onExportSession(exportMenu.id, 'pdf'); closeMenu(); }}
                  className="w-full text-left px-4 py-2 text-[13px] text-[#E3E3E3] hover:bg-[#3d3d3d] transition-colors flex items-center gap-3"
@@ -321,12 +323,50 @@ export const HomeView: React.FC<HomeViewProps> = ({ sessions, onOpenSession, onN
                  PDF Document
              </button>
              <button 
+                 onClick={() => { onExportSession(exportMenu.id, 'doc'); closeMenu(); }}
+                 className="w-full text-left px-4 py-2 text-[13px] text-[#E3E3E3] hover:bg-[#3d3d3d] transition-colors flex items-center gap-3"
+             >
+                 <span className="material-symbols-rounded text-[18px] text-blue-400">description</span>
+                 Word (.doc)
+             </button>
+
+             <div className="h-px bg-white/10 my-1 mx-2"></div>
+
+             {/* Visual */}
+             <div className="px-3 py-1 mt-1 text-[10px] font-bold text-gray-500 uppercase tracking-wider">Images</div>
+             <button 
                  onClick={() => { onExportSession(exportMenu.id, 'png'); closeMenu(); }}
                  className="w-full text-left px-4 py-2 text-[13px] text-[#E3E3E3] hover:bg-[#3d3d3d] transition-colors flex items-center gap-3"
              >
                  <span className="material-symbols-rounded text-[18px] text-emerald-400">image</span>
-                 Image (.png)
+                 PNG
              </button>
+             <button 
+                 onClick={() => { onExportSession(exportMenu.id, 'jpg'); closeMenu(); }}
+                 className="w-full text-left px-4 py-2 text-[13px] text-[#E3E3E3] hover:bg-[#3d3d3d] transition-colors flex items-center gap-3"
+             >
+                 <span className="material-symbols-rounded text-[18px] text-emerald-400">image</span>
+                 JPG
+             </button>
+             <button 
+                 onClick={() => { onExportSession(exportMenu.id, 'webp'); closeMenu(); }}
+                 className="w-full text-left px-4 py-2 text-[13px] text-[#E3E3E3] hover:bg-[#3d3d3d] transition-colors flex items-center gap-3"
+             >
+                 <span className="material-symbols-rounded text-[18px] text-emerald-400">image</span>
+                 WebP
+             </button>
+             <button 
+                 onClick={() => { onExportSession(exportMenu.id, 'svg'); closeMenu(); }}
+                 className="w-full text-left px-4 py-2 text-[13px] text-[#E3E3E3] hover:bg-[#3d3d3d] transition-colors flex items-center gap-3"
+             >
+                 <span className="material-symbols-rounded text-[18px] text-orange-400">draw</span>
+                 SVG
+             </button>
+
+             <div className="h-px bg-white/10 my-1 mx-2"></div>
+             
+             {/* Audio */}
+             <div className="px-3 py-1 mt-1 text-[10px] font-bold text-gray-500 uppercase tracking-wider">Audio</div>
              <button 
                  onClick={() => { onExportSession(exportMenu.id, 'midi'); closeMenu(); }}
                  className="w-full text-left px-4 py-2 text-[13px] text-[#E3E3E3] hover:bg-[#3d3d3d] transition-colors flex items-center gap-3"
