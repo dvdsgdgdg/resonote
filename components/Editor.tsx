@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 
 interface EditorProps {
@@ -7,6 +8,7 @@ interface EditorProps {
   textareaId?: string;
   onImport: () => void;
   onExport: () => void;
+  onTranspose: (semitones: number) => void;
 }
 
 export const Editor: React.FC<EditorProps> = ({ 
@@ -15,7 +17,8 @@ export const Editor: React.FC<EditorProps> = ({
   warningId, 
   textareaId,
   onImport,
-  onExport
+  onExport,
+  onTranspose
 }) => {
   const [isSuccess, setIsSuccess] = useState(false);
 
@@ -27,17 +30,11 @@ export const Editor: React.FC<EditorProps> = ({
 
     const checkStatus = () => {
       const text = el.innerText || "";
-      // Check if the text explicitly indicates "No errors"
-      // If the user specifically sees "No errors", we style it green.
-      // Otherwise, we assume it's an error message (Red).
       const hasNoErrorsMessage = text.toLowerCase().includes("no error");
       setIsSuccess(hasNoErrorsMessage);
     };
 
-    // Initial check
     checkStatus();
-
-    // Observe changes to the element's text content
     const observer = new MutationObserver(checkStatus);
     observer.observe(el, { childList: true, characterData: true, subtree: true });
 
@@ -52,6 +49,27 @@ export const Editor: React.FC<EditorProps> = ({
           <h3 className="text-md font-medium text-white tracking-wide">ABC Notation Source</h3>
         </div>
         <div className="flex items-center gap-1">
+             {/* Transpose Controls */}
+             <div className="flex items-center mr-2 bg-black/20 rounded-lg p-0.5 border border-white/5">
+                <button 
+                  onClick={() => onTranspose(-1)}
+                  className="p-1.5 hover:bg-white/10 rounded-md text-md-sys-secondary hover:text-white transition-colors"
+                  title="Transpose Down (-1 Semitone)"
+                >
+                   <span className="material-symbols-rounded text-[18px]">remove</span>
+                </button>
+                <span className="text-[10px] font-bold text-gray-500 px-2 uppercase tracking-wider select-none">Transpose</span>
+                <button 
+                  onClick={() => onTranspose(1)}
+                  className="p-1.5 hover:bg-white/10 rounded-md text-md-sys-secondary hover:text-white transition-colors"
+                  title="Transpose Up (+1 Semitone)"
+                >
+                   <span className="material-symbols-rounded text-[18px]">add</span>
+                </button>
+             </div>
+
+             <div className="w-px h-6 bg-white/10 mx-2"></div>
+
              <button 
                 onClick={onImport} 
                 className="p-2 hover:bg-white/10 rounded-lg text-md-sys-secondary hover:text-white transition-colors" 

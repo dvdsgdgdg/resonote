@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Header } from './components/Header';
 import { TabBar } from './components/TabBar';
@@ -13,6 +14,7 @@ import { DEFAULT_ABC } from './constants/defaults';
 import { DEFAULT_MODEL_ID } from './constants/models';
 import { validateABC } from './utils/abcValidator';
 import { MusicDisplayHandle } from './components/MusicDisplay';
+import { transposeABC } from './utils/abcTransposer';
 
 const STORAGE_KEY = 'resonote_sessions_v1';
 
@@ -43,8 +45,6 @@ export default function App() {
         // Hydrate: Ensure files array is empty (can't restore Files) but logs/abc are kept
         const hydrated = parsed.map(s => ({
             ...s,
-            // Default isOpen to false for legacy data to keep top bar clean on fresh load, 
-            // or respect persisted state if present.
             isOpen: s.isOpen ?? false, 
             data: {
                 ...s.data,
@@ -63,7 +63,6 @@ export default function App() {
   // Save sessions on change
   useEffect(() => {
     if (sessions.length > 0) {
-        // Serialize sessions without File objects to avoid circular structure and quota issues
         const toSave = sessions.map(s => ({
             ...s,
             data: {
@@ -73,12 +72,10 @@ export default function App() {
         }));
         localStorage.setItem(STORAGE_KEY, JSON.stringify(toSave));
     } else {
-        // If no sessions, clear storage to reflect empty state
         localStorage.removeItem(STORAGE_KEY);
     }
   }, [sessions]);
 
-  // Trigger resize event when switching tabs to ensure abcjs redraws correctly if needed
   useEffect(() => {
     window.dispatchEvent(new Event('resize'));
   }, [activeTabId]);
@@ -90,7 +87,7 @@ export default function App() {
         id: Date.now().toString(),
         title: title || `Untitled Project`,
         lastModified: Date.now(),
-        isOpen: true, // New sessions are open by default
+        isOpen: true, 
         data: {
             files: [],
             prompt: "",
@@ -110,20 +107,15 @@ export default function App() {
 
   const closeSessionTab = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    // Close the tab by setting isOpen to false, but keep in sessions list
     setSessions(prev => prev.map(s => s.id === id ? { ...s, isOpen: false } : s));
-    
-    // Cleanup refs to avoid memory leaks
     sessionRefs.current.delete(id);
 
-    // Navigate to home if the closed tab was active
     if (activeTabId === id) {
         setActiveTabId('home');
     }
   };
 
   const handleOpenSession = (id: string) => {
-    // Re-open a closed session
     setSessions(prev => prev.map(s => s.id === id ? { ...s, isOpen: true } : s));
     setActiveTabId(id);
   };
@@ -168,11 +160,18 @@ export default function App() {
   const handleTabsReorder = (newOrderIds: string[]) => {
     setSessions(prev => {
         const sessionMap = new Map(prev.map(s => [s.id, s]));
-        // Reconstruct order based on Tabs, append closed sessions at the end (order doesn't matter for hidden)
         const reorderedOpen = newOrderIds.map(id => sessionMap.get(id)).filter(Boolean) as Session[];
         const closed = prev.filter(s => !s.isOpen);
         return [...reorderedOpen, ...closed];
     });
+  };
+
+  const handleTranspose = (sessionId: string, semitones: number) => {
+      const session = sessions.find(s => s.id === sessionId);
+      if (!session || !session.data.abc) return;
+
+      const transposedABC = transposeABC(session.data.abc, semitones);
+      updateSession(sessionId, { abc: transposedABC });
   };
 
   // --- Generation Logic ---
@@ -186,7 +185,6 @@ export default function App() {
         const now = new Date();
         const timestamp = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`;
 
-        // Streaming update optimization
         if (type === 'thinking' && lastLog?.type === 'thinking') {
              if (lastLog.message === message) return s;
              const newLogs = [...currentLogs];
@@ -214,7 +212,6 @@ export default function App() {
 
     if (data.files.length === 0 && !data.prompt.trim()) return;
 
-    // Reset State for this session
     updateSession(sessionId, { 
         abc: "", 
         generation: { isLoading: true, error: null, result: null, logs: [] } 
@@ -232,7 +229,6 @@ export default function App() {
         validateABC
       );
 
-      // Final update
       setSessions(prev => prev.map(s => {
           if (s.id !== sessionId) return s;
           return {
@@ -263,11 +259,8 @@ export default function App() {
   // --- Import / Export Logic ---
 
   const handleImportClick = () => {
-    // FIX: Directly trigger file input without intermediate confirmation dialogs.
-    // This prevents "User cancelled" errors caused by browser security blocking event loops.
-    // The "Import" action implies intent to replace content.
     if (importInputRef.current) {
-        importInputRef.current.value = ''; // Reset to allow re-selecting same file
+        importInputRef.current.value = '';
         importInputRef.current.click();
     }
   };
@@ -303,7 +296,6 @@ export default function App() {
   const handleExport = (type: 'png' | 'pdf' | 'midi' | 'wav' | 'mp3' | 'abc' | 'txt') => {
     if (activeTabId === 'home') return;
 
-    // Source Export (handled by App directly)
     if (type === 'abc' || type === 'txt') {
         const session = sessions.find(s => s.id === activeTabId);
         if (!session) return;
@@ -320,19 +312,16 @@ export default function App() {
         return;
     }
 
-    // Visual/Audio Export (handled by MusicDisplay component)
     const ref = sessionRefs.current.get(activeTabId);
     if (ref) {
         ref.exportFile(type);
     }
   };
 
-  // Function to export session source/media directly from HomeView
   const handleExportFromHome = (sessionId: string, type: 'png' | 'pdf' | 'midi' | 'wav' | 'mp3' | 'abc' | 'txt') => {
     const session = sessions.find(s => s.id === sessionId);
     if (!session) return;
 
-    // Text formats - handled directly here
     if (type === 'abc' || type === 'txt') {
         const blob = new Blob([session.data.abc], { type: 'text/plain' });
         const url = URL.createObjectURL(blob);
@@ -346,8 +335,6 @@ export default function App() {
         return;
     }
 
-    // Media formats - delegate to MusicDisplay logic via Ref
-    // Note: MusicDisplay components are mounted but hidden, so refs should be available.
     const ref = sessionRefs.current.get(sessionId);
     if (ref) {
         ref.exportFile(type);
@@ -358,13 +345,11 @@ export default function App() {
 
   // --- Rendering ---
   
-  // Filter active tabs for the top bar
   const openSessions = sessions.filter(s => s.isOpen);
 
   return (
     <div className="min-h-screen bg-md-sys-background text-md-sys-secondary selection:bg-md-sys-primary selection:text-md-sys-onPrimary font-sans flex flex-col overflow-hidden">
       
-      {/* Hidden Import Input */}
       <input 
         type="file" 
         ref={importInputRef} 
@@ -384,7 +369,6 @@ export default function App() {
         onExport={handleExport}
       />
 
-      {/* Tabs - Fixed Top Bar (Only show Open Sessions) */}
       <TabBar 
         tabs={openSessions.map(s => ({ id: s.id, title: s.title }))} 
         activeTabId={activeTabId}
@@ -395,10 +379,8 @@ export default function App() {
         onTabRename={handleTabRename}
       />
 
-      {/* Main Content - Added padding top to account for fixed Header + TabBar (40px + 40px = 80px -> pt-20) */}
       <main className="flex-1 overflow-hidden relative pt-20">
         
-        {/* Render Home View - Persist in DOM but hide/show */}
         <div className={`absolute inset-0 top-20 z-10 bg-md-sys-background transition-opacity duration-200 ${activeTabId === 'home' ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}>
              <HomeView 
                 sessions={sessions} 
@@ -409,7 +391,6 @@ export default function App() {
              />
         </div>
 
-        {/* Render Workspaces for OPEN sessions - Keep them mounted to persist audio/state */}
         {openSessions.map(session => (
             <div 
                 key={session.id} 
@@ -425,11 +406,11 @@ export default function App() {
                     }}
                     onImport={handleImportClick}
                     onExport={() => handleExport('abc')}
+                    onTranspose={(st) => handleTranspose(session.id, st)}
                 />
             </div>
         ))}
 
-        {/* Fallback Empty State */}
         {sessions.length === 0 && activeTabId !== 'home' && (
              <div className="flex items-center justify-center h-full text-gray-500">
                  Session not found.
@@ -438,7 +419,6 @@ export default function App() {
 
       </main>
 
-      {/* Modals */}
       <AboutModal isOpen={showAbout} onClose={() => setShowAbout(false)} />
       <FeedbackModal isOpen={showFeedback} onClose={() => setShowFeedback(false)} />
       <TermsModal isOpen={showTerms} onClose={() => setShowTerms(false)} />

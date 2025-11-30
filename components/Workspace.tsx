@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { MusicDisplay, MusicDisplayHandle } from './MusicDisplay';
 import { Editor } from './Editor';
@@ -11,6 +12,7 @@ interface WorkspaceProps {
   musicDisplayRef: React.Ref<MusicDisplayHandle>;
   onImport: () => void;
   onExport: () => void;
+  onTranspose: (semitones: number) => void;
 }
 
 export const Workspace: React.FC<WorkspaceProps> = ({ 
@@ -19,7 +21,8 @@ export const Workspace: React.FC<WorkspaceProps> = ({
   onGenerate,
   musicDisplayRef,
   onImport,
-  onExport
+  onExport,
+  onTranspose
 }) => {
   const { data } = session;
   const EDITOR_TEXTAREA_ID = `abc-source-textarea-${session.id}`;
@@ -83,6 +86,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({
             textareaId={EDITOR_TEXTAREA_ID}
             onImport={onImport}
             onExport={onExport}
+            onTranspose={onTranspose}
           />
         </div>
       </div>
