@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { UploadFileState, LogEntry, GenerationState, UserSettings } from '../types';
 import { AVAILABLE_MODELS } from '../constants/models';
@@ -258,7 +259,7 @@ export const InputPanel: React.FC<InputPanelProps> = ({
     // Only accept if we are NOT reordering items internally
     if (draggedItemIndex === null && e.dataTransfer.files && e.dataTransfer.files.length > 0) {
        // Filter for images AND PDFs
-       const validFiles = Array.from(e.dataTransfer.files).filter(f => 
+       const validFiles = Array.from(e.dataTransfer.files).filter((f: File) => 
           f.type.startsWith('image/') || f.type === 'application/pdf'
        );
        if (validFiles.length > 0) {
@@ -310,7 +311,7 @@ export const InputPanel: React.FC<InputPanelProps> = ({
   const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
       // Filter for images AND PDFs
-      const validFiles = Array.from(e.target.files).filter(f => 
+      const validFiles = Array.from(e.target.files).filter((f: File) => 
          f.type.startsWith('image/') || f.type === 'application/pdf'
       );
       onFilesSelected(validFiles);

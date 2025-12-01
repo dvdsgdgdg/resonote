@@ -34,7 +34,7 @@ export const MusicDisplay = React.forwardRef<MusicDisplayHandle, MusicDisplayPro
   const audioId = `abc-audio-${uniqueId}`;
   
   const editorRef = useRef<any>(null);
-  const thumbnailTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const thumbnailTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   
   const [exportingState, setExportingState] = useState<string | null>(null);
 
