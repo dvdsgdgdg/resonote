@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { MusicDisplay, MusicDisplayHandle } from './MusicDisplay';
 import { Editor } from './Editor';
@@ -13,6 +14,7 @@ interface WorkspaceProps {
   onImport: () => void;
   onExport: () => void;
   onTranspose: (semitones: number) => void;
+  onCommitHistory?: () => void;
   viewSettings: ViewSettings;
   userSettings?: UserSettings;
 }
@@ -25,6 +27,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({
   onImport,
   onExport,
   onTranspose,
+  onCommitHistory,
   viewSettings,
   userSettings
 }) => {
@@ -57,6 +60,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({
           abc: "", 
           generation: { isLoading: false, error: null, result: null, logs: [] } 
       });
+      // We don't commit history here immediately, let user do next action
   };
 
   return (
@@ -95,6 +99,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({
             onImport={onImport}
             onExport={onExport}
             onTranspose={onTranspose}
+            onCommitHistory={onCommitHistory}
           />
         </div>
       </div>

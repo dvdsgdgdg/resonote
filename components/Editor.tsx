@@ -1,5 +1,5 @@
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 
 interface EditorProps {
   value: string;
@@ -9,6 +9,7 @@ interface EditorProps {
   onImport: () => void;
   onExport: () => void;
   onTranspose: (semitones: number) => void;
+  onCommitHistory?: () => void;
 }
 
 export const Editor: React.FC<EditorProps> = ({ 
@@ -18,9 +19,11 @@ export const Editor: React.FC<EditorProps> = ({
   textareaId,
   onImport,
   onExport,
-  onTranspose
+  onTranspose,
+  onCommitHistory
 }) => {
   const [isSuccess, setIsSuccess] = useState(false);
+  const debounceRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     if (!warningId) return;
@@ -40,6 +43,19 @@ export const Editor: React.FC<EditorProps> = ({
 
     return () => observer.disconnect();
   }, [warningId]);
+
+  const handleChange = (newValue: string) => {
+    // 1. Update state immediately
+    onChange(newValue);
+
+    // 2. Debounce history commit (Wait 1s after last keystroke)
+    if (onCommitHistory) {
+        if (debounceRef.current) clearTimeout(debounceRef.current);
+        debounceRef.current = setTimeout(() => {
+            onCommitHistory();
+        }, 1000);
+    }
+  };
 
   return (
     <div className="w-full h-full flex flex-col bg-md-sys-surface rounded-3xl border border-md-sys-outline/20 overflow-hidden">
@@ -90,7 +106,7 @@ export const Editor: React.FC<EditorProps> = ({
         <textarea
           id={textareaId}
           value={value}
-          onChange={(e) => onChange(e.target.value)}
+          onChange={(e) => handleChange(e.target.value)}
           className="w-full h-full bg-transparent p-6 text-sm font-mono text-md-sys-secondary resize-none focus:outline-none focus:ring-0 leading-relaxed"
           spellCheck={false}
         />

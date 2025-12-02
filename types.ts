@@ -1,3 +1,4 @@
+
 export interface ABCResult {
   abc: string;
   thoughtSignature?: string;
@@ -35,6 +36,12 @@ export interface UserSettings {
   theme: 'light' | 'dark'; // Added theme preference
 }
 
+export interface HistoryEntry {
+  content: string;
+  timestamp: number;
+  label: string;
+}
+
 export interface Session {
   id: string;
   title: string;
@@ -44,6 +51,8 @@ export interface Session {
     files: UploadFileState[];
     prompt: string;
     abc: string;
+    history: HistoryEntry[]; // History stack for Undo/Redo
+    historyIndex: number; // Current position in history stack
     model: string;
     generation: GenerationState;
     thumbnail?: string;

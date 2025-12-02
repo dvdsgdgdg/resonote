@@ -11,7 +11,7 @@ import { ChangelogModal } from './components/modals/ChangelogModal';
 import { ConfirmationModal } from './components/modals/ConfirmationModal';
 import { SettingsView } from './components/SettingsView';
 import { convertImageToABC } from './services/geminiService';
-import { Session, GenerationState, LogEntry, UserSettings } from './types';
+import { Session, GenerationState, LogEntry, UserSettings, HistoryEntry } from './types';
 import { DEFAULT_ABC } from './constants/defaults';
 import { DEFAULT_MODEL_ID, AVAILABLE_MODELS } from './constants/models';
 import { validateABC } from './utils/abcValidator';
@@ -72,18 +72,39 @@ export default function App() {
       // Load Sessions
       const savedSessions = localStorage.getItem(STORAGE_KEY);
       if (savedSessions) {
-        const parsed: Session[] = JSON.parse(savedSessions);
+        const parsed: any[] = JSON.parse(savedSessions);
         // Hydrate
-        const hydrated = parsed.map(s => ({
-            ...s,
-            isOpen: s.isOpen ?? false, 
-            data: {
-                ...s.data,
-                files: [], // Files cannot be persisted securely
-                // Reset loading state on reload
-                generation: { ...s.data.generation, isLoading: false, error: null } 
+        const hydrated: Session[] = parsed.map(s => {
+            // Migration for History: string[] -> HistoryEntry[]
+            let history: HistoryEntry[] = [];
+            if (Array.isArray(s.data.history)) {
+                if (s.data.history.length > 0 && typeof s.data.history[0] === 'string') {
+                    // Old format
+                    history = (s.data.history as unknown as string[]).map((h, i) => ({
+                        content: h,
+                        timestamp: s.lastModified,
+                        label: i === 0 ? 'Initial State' : 'Legacy Edit'
+                    }));
+                } else {
+                    history = s.data.history;
+                }
+            } else {
+                 history = [{ content: s.data.abc || DEFAULT_ABC, timestamp: Date.now(), label: 'Initial' }];
             }
-        }));
+
+            return {
+                ...s,
+                isOpen: s.isOpen ?? false, 
+                data: {
+                    ...s.data,
+                    files: [], // Files cannot be persisted securely
+                    history: history,
+                    historyIndex: s.data.historyIndex ?? (history.length - 1),
+                    // Reset loading state on reload
+                    generation: { ...s.data.generation, isLoading: false, error: null } 
+                }
+            };
+        });
         setSessions(hydrated);
       }
 
@@ -107,6 +128,7 @@ export default function App() {
             data: {
                 ...s.data,
                 files: [], // Don't save files
+                // We save history, but maybe limit it? For now save all.
             }
         }));
         localStorage.setItem(STORAGE_KEY, JSON.stringify(toSave));
@@ -140,6 +162,7 @@ export default function App() {
   // --- Session Helpers ---
 
   const createNewSession = useCallback((initialAbc?: string, title?: string) => {
+    const startAbc = initialAbc || DEFAULT_ABC;
     const newSession: Session = {
         id: Date.now().toString(),
         title: title || `Untitled Project`,
@@ -148,7 +171,9 @@ export default function App() {
         data: {
             files: [],
             prompt: "",
-            abc: initialAbc || DEFAULT_ABC,
+            abc: startAbc,
+            history: [{ content: startAbc, timestamp: Date.now(), label: 'Initial' }],
+            historyIndex: 0,
             model: DEFAULT_MODEL_ID,
             generation: {
                 isLoading: false,
@@ -210,6 +235,7 @@ export default function App() {
       setSessionToDelete(null);
   }, [sessionToDelete, activeTabId]);
 
+  // General Update Helper
   const updateSession = useCallback((id: string, updates: Partial<Session['data']>) => {
     setSessions(prev => prev.map(s => {
         if (s.id !== id) return s;
@@ -230,6 +256,125 @@ export default function App() {
         };
     }));
   }, []);
+
+  // --- History Management ---
+
+  const pushToHistory = useCallback((sessionId: string, label: string = 'Manual Edit') => {
+    setSessions(prev => prev.map(s => {
+      if (s.id !== sessionId) return s;
+
+      const currentAbc = s.data.abc;
+      const lastHistoryEntry = s.data.history[s.data.historyIndex];
+
+      // Avoid duplicates
+      if (lastHistoryEntry && currentAbc === lastHistoryEntry.content) return s;
+
+      const newHistory = s.data.history.slice(0, s.data.historyIndex + 1);
+      newHistory.push({
+          content: currentAbc,
+          timestamp: Date.now(),
+          label: label
+      });
+
+      // Limit history size (optional, e.g., 50 steps)
+      if (newHistory.length > 50) {
+        newHistory.shift();
+      }
+
+      return {
+        ...s,
+        data: {
+          ...s.data,
+          history: newHistory,
+          historyIndex: newHistory.length - 1
+        }
+      };
+    }));
+  }, []);
+
+  const handleUndo = useCallback(() => {
+    if (activeTabId === 'home' || activeTabId === 'settings') return;
+    
+    setSessions(prev => prev.map(s => {
+      if (s.id !== activeTabId) return s;
+      
+      if (s.data.historyIndex > 0) {
+        const newIndex = s.data.historyIndex - 1;
+        const entry = s.data.history[newIndex];
+        return {
+          ...s,
+          data: {
+            ...s.data,
+            historyIndex: newIndex,
+            abc: entry.content
+          }
+        };
+      }
+      return s;
+    }));
+  }, [activeTabId]);
+
+  const handleRedo = useCallback(() => {
+    if (activeTabId === 'home' || activeTabId === 'settings') return;
+
+    setSessions(prev => prev.map(s => {
+      if (s.id !== activeTabId) return s;
+
+      if (s.data.historyIndex < s.data.history.length - 1) {
+        const newIndex = s.data.historyIndex + 1;
+        const entry = s.data.history[newIndex];
+        return {
+          ...s,
+          data: {
+            ...s.data,
+            historyIndex: newIndex,
+            abc: entry.content
+          }
+        };
+      }
+      return s;
+    }));
+  }, [activeTabId]);
+
+  const handleJumpToHistory = useCallback((index: number) => {
+      if (activeTabId === 'home' || activeTabId === 'settings') return;
+      
+      setSessions(prev => prev.map(s => {
+          if (s.id !== activeTabId) return s;
+          if (index < 0 || index >= s.data.history.length) return s;
+          
+          return {
+              ...s,
+              data: {
+                  ...s.data,
+                  historyIndex: index,
+                  abc: s.data.history[index].content
+              }
+          };
+      }));
+  }, [activeTabId]);
+
+  // Global Keyboard Shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z') {
+        if (e.shiftKey) {
+          e.preventDefault();
+          handleRedo();
+        } else {
+          e.preventDefault();
+          handleUndo();
+        }
+      } else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'y') {
+        e.preventDefault();
+        handleRedo();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [handleUndo, handleRedo]);
+
 
   const handleTabRename = (id: string, newTitle: string) => {
     setSessions(prev => prev.map(s => 
@@ -252,6 +397,8 @@ export default function App() {
 
       const transposedABC = transposeABC(session.data.abc, semitones);
       updateSession(sessionId, { abc: transposedABC });
+      // Commit transpose to history immediately
+      setTimeout(() => pushToHistory(sessionId, `Transpose ${semitones > 0 ? '+' : ''}${semitones}`), 0); 
   };
 
   // --- View Handlers ---
@@ -315,6 +462,11 @@ export default function App() {
 
     if (data.files.length === 0 && !data.prompt.trim()) return;
 
+    // Save current state before generation wipes it (if it wasn't empty)
+    if (data.abc.trim()) {
+       pushToHistory(sessionId, 'Pre-Generation Save');
+    }
+
     updateSession(sessionId, { 
         abc: "", 
         generation: { isLoading: true, error: null, result: null, logs: [] } 
@@ -344,6 +496,10 @@ export default function App() {
               }
           };
       }));
+      
+      // Commit successful generation to history
+      setTimeout(() => pushToHistory(sessionId, 'AI Generation'), 0);
+
       addLogToSession(sessionId, "Generation Complete.", 'success');
 
     } catch (err: any) {
@@ -390,6 +546,8 @@ export default function App() {
             createNewSession(text, file.name.replace(/\.(abc|txt)$/i, ''));
         } else {
              updateSession(activeTabId, { abc: text });
+             // Commit import to history
+             setTimeout(() => pushToHistory(activeTabId, 'Import File'), 0);
         }
     } catch (error) {
         console.error(error);
@@ -457,6 +615,10 @@ export default function App() {
     ...(isSettingsOpen ? [{ id: 'settings', title: 'Settings' }] : [])
   ];
 
+  const currentSession = sessions.find(s => s.id === activeTabId);
+  const canUndo = currentSession ? currentSession.data.historyIndex > 0 : false;
+  const canRedo = currentSession ? currentSession.data.historyIndex < currentSession.data.history.length - 1 : false;
+
   return (
     <div className="min-h-screen bg-md-sys-background text-md-sys-secondary selection:bg-md-sys-primary selection:text-md-sys-onPrimary font-sans flex flex-col overflow-hidden">
       
@@ -484,6 +646,13 @@ export default function App() {
         onResetZoom={handleResetZoom}
         theme={userSettings.theme}
         onToggleTheme={handleToggleTheme}
+        onUndo={handleUndo}
+        onRedo={handleRedo}
+        canUndo={canUndo}
+        canRedo={canRedo}
+        sessionHistory={currentSession?.data.history || []}
+        historyIndex={currentSession?.data.historyIndex || 0}
+        onJumpToHistory={handleJumpToHistory}
       />
 
       <TabBar 
@@ -536,6 +705,7 @@ export default function App() {
                     onImport={handleImportClick}
                     onExport={() => handleExport('abc')}
                     onTranspose={(st) => handleTranspose(session.id, st)}
+                    onCommitHistory={() => pushToHistory(session.id, 'Manual Edit')}
                     viewSettings={viewSettings}
                     userSettings={userSettings}
                 />
