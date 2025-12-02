@@ -30,6 +30,7 @@ export interface ViewSettings {
 const DEFAULT_USER_SETTINGS: UserSettings = {
   apiKey: '',
   enabledModels: AVAILABLE_MODELS.map(m => m.id),
+  customModels: [],
   theme: 'dark'
 };
 
@@ -94,7 +95,9 @@ export default function App() {
 
             return {
                 ...s,
-                isOpen: s.isOpen ?? false, 
+                isOpen: s.isOpen ?? false,
+                customColor: s.customColor, // Hydrate color
+                customIcon: s.customIcon,   // Hydrate icon
                 data: {
                     ...s.data,
                     files: [], // Files cannot be persisted securely
@@ -382,6 +385,12 @@ export default function App() {
     ));
   };
 
+  const handleTabCustomize = (id: string, color?: string, icon?: string) => {
+    setSessions(prev => prev.map(s => 
+        s.id === id ? { ...s, customColor: color, customIcon: icon } : s
+    ));
+  };
+
   const handleTabsReorder = (newOrderIds: string[]) => {
     setSessions(prev => {
         const sessionMap = new Map(prev.map(s => [s.id, s]));
@@ -611,7 +620,12 @@ export default function App() {
   
   // Combine sessions with special tabs
   const visibleTabs = [
-    ...openSessions.map(s => ({ id: s.id, title: s.title })),
+    ...openSessions.map(s => ({ 
+      id: s.id, 
+      title: s.title,
+      customColor: s.customColor,
+      customIcon: s.customIcon
+    })),
     ...(isSettingsOpen ? [{ id: 'settings', title: 'Settings' }] : [])
   ];
 
@@ -663,6 +677,7 @@ export default function App() {
         onNewTab={() => createNewSession()}
         onTabsReorder={handleTabsReorder}
         onTabRename={handleTabRename}
+        onTabCustomize={handleTabCustomize}
       />
 
       <main className="flex-1 overflow-hidden relative pt-20">

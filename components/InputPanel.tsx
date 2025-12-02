@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { UploadFileState, LogEntry, GenerationState, UserSettings } from '../types';
 import { AVAILABLE_MODELS } from '../constants/models';
@@ -325,7 +326,10 @@ export const InputPanel: React.FC<InputPanelProps> = ({
   };
 
   // Filter visible models based on settings
-  const visibleModels = AVAILABLE_MODELS.filter(m => 
+  const visibleModels = [
+    ...AVAILABLE_MODELS,
+    ...(userSettings?.customModels || [])
+  ].filter(m => 
     userSettings ? userSettings.enabledModels.includes(m.id) : true
   );
 

@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { UserSettings } from '../types';
 import { AVAILABLE_MODELS } from '../constants/models';
@@ -16,6 +17,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [activeTab, setActiveTab] = useState<SettingsTab>('general');
   const [showKey, setShowKey] = useState(false);
 
+  // State for adding new model
+  const [newModelId, setNewModelId] = useState('');
+  const [newModelName, setNewModelName] = useState('');
+
   // Helper to update settings immediately (VS Code style auto-save behavior)
   const updateSetting = (updates: Partial<UserSettings>) => {
     onSaveSettings({ ...settings, ...updates });
@@ -30,6 +35,37 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         newModels = [...settings.enabledModels, modelId];
     }
     updateSetting({ enabledModels: newModels });
+  };
+
+  const handleAddCustomModel = () => {
+      if (!newModelId.trim()) return;
+      
+      const customModels = settings.customModels || [];
+      // Prevent duplicates
+      if (AVAILABLE_MODELS.some(m => m.id === newModelId) || customModels.some(m => m.id === newModelId)) {
+          alert("Model ID already exists.");
+          return;
+      }
+
+      const newModel = { 
+          id: newModelId.trim(), 
+          name: newModelName.trim() || newModelId.trim() 
+      };
+
+      updateSetting({ 
+          customModels: [...customModels, newModel],
+          enabledModels: [...settings.enabledModels, newModel.id] // Auto-enable
+      });
+
+      setNewModelId('');
+      setNewModelName('');
+  };
+
+  const handleDeleteCustomModel = (modelId: string) => {
+      updateSetting({
+          customModels: (settings.customModels || []).filter(m => m.id !== modelId),
+          enabledModels: settings.enabledModels.filter(id => id !== modelId)
+      });
   };
 
   return (
@@ -171,6 +207,95 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                                         </div>
                                     );
                                 })}
+                            </div>
+
+                            {/* Custom Models Section */}
+                            <div className="mt-8 border-t border-md-sys-outline/10 pt-6">
+                                <h3 className="text-sm font-bold text-md-sys-onSurface mb-4">Custom Models</h3>
+                                
+                                {settings.customModels && settings.customModels.length > 0 && (
+                                    <div className="space-y-1 mb-6">
+                                        {settings.customModels.map(model => {
+                                            const isEnabled = settings.enabledModels.includes(model.id);
+                                            return (
+                                                <div 
+                                                    key={model.id} 
+                                                    className="flex items-center justify-between p-4 rounded-lg bg-md-sys-surfaceVariant/10 hover:bg-md-sys-surfaceVariant/30 transition-colors border border-md-sys-outline/10 group"
+                                                >
+                                                    <div className="flex flex-col">
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="text-sm font-medium text-md-sys-onSurface">{model.name}</span>
+                                                            <span className="text-[10px] bg-md-sys-primary/10 text-md-sys-primary px-1.5 py-0.5 rounded border border-md-sys-primary/20">Custom</span>
+                                                        </div>
+                                                        <span className="text-xs font-mono text-md-sys-secondary mt-0.5">{model.id}</span>
+                                                    </div>
+                                                    
+                                                    <div className="flex items-center gap-3">
+                                                         {/* Toggle Switch */}
+                                                        <button 
+                                                            onClick={() => toggleModel(model.id)}
+                                                            className={`
+                                                                relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none
+                                                                ${isEnabled ? 'bg-md-sys-primary' : 'bg-md-sys-surfaceVariant'}
+                                                            `}
+                                                        >
+                                                            <span 
+                                                                className={`
+                                                                    pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out
+                                                                    ${isEnabled ? 'translate-x-5' : 'translate-x-0'}
+                                                                `}
+                                                            />
+                                                        </button>
+
+                                                        {/* Delete Button */}
+                                                        <button 
+                                                            onClick={() => handleDeleteCustomModel(model.id)}
+                                                            className="p-2 rounded-full hover:bg-md-sys-error/10 text-md-sys-secondary hover:text-md-sys-error transition-colors"
+                                                            title="Delete Custom Model"
+                                                        >
+                                                            <span className="material-symbols-rounded text-[18px]">delete</span>
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                )}
+
+                                {/* Add Model Form */}
+                                <div className="bg-md-sys-surfaceVariant/20 rounded-lg p-4 border border-md-sys-outline/10">
+                                    <p className="text-xs font-bold text-md-sys-secondary uppercase tracking-wider mb-3">Add New Model</p>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
+                                        <div>
+                                            <input 
+                                                type="text" 
+                                                value={newModelId}
+                                                onChange={(e) => setNewModelId(e.target.value)}
+                                                placeholder="Model ID (e.g., gemini-1.5-pro)"
+                                                className="w-full bg-md-sys-surfaceVariant/50 border border-md-sys-outline/20 rounded-lg px-3 py-2 text-sm text-md-sys-onSurface focus:outline-none focus:border-md-sys-primary focus:ring-1 focus:ring-md-sys-primary transition-all placeholder:text-md-sys-outline"
+                                            />
+                                        </div>
+                                        <div>
+                                            <input 
+                                                type="text" 
+                                                value={newModelName}
+                                                onChange={(e) => setNewModelName(e.target.value)}
+                                                placeholder="Display Name (Optional)"
+                                                className="w-full bg-md-sys-surfaceVariant/50 border border-md-sys-outline/20 rounded-lg px-3 py-2 text-sm text-md-sys-onSurface focus:outline-none focus:border-md-sys-primary focus:ring-1 focus:ring-md-sys-primary transition-all placeholder:text-md-sys-outline"
+                                            />
+                                        </div>
+                                    </div>
+                                    <div className="flex justify-end">
+                                        <button 
+                                            onClick={handleAddCustomModel}
+                                            disabled={!newModelId.trim()}
+                                            className="px-4 py-2 bg-md-sys-onSurface text-md-sys-surface rounded-md text-xs font-bold hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                                        >
+                                            <span className="material-symbols-rounded text-[16px]">add</span>
+                                            Add Model
+                                        </button>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>

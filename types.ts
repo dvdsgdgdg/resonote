@@ -33,6 +33,7 @@ export interface ValidationResult {
 export interface UserSettings {
   apiKey: string;
   enabledModels: string[]; // List of model IDs that are visible
+  customModels: { id: string; name: string }[]; // User defined models
   theme: 'light' | 'dark'; // Added theme preference
 }
 
@@ -47,6 +48,8 @@ export interface Session {
   title: string;
   lastModified: number;
   isOpen?: boolean; // Tracks if the session is currently open in a tab
+  customColor?: string; // Custom tab color (hex)
+  customIcon?: string; // Custom tab icon name
   data: {
     files: UploadFileState[];
     prompt: string;
