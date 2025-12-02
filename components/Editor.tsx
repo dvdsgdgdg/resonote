@@ -99,18 +99,18 @@ export const Editor: React.FC<EditorProps> = ({
         </div>
         <div className="flex items-center gap-1">
              {/* Transpose Controls */}
-             <div className="flex items-center mr-2 bg-black/20 rounded-lg p-0.5 border border-white/5">
+             <div className="flex items-center mr-2 bg-md-sys-onSurface/10 rounded-lg p-0.5 border border-md-sys-onSurface/5">
                 <button 
                   onClick={() => handleTransposeClick(-1)}
-                  className="p-1.5 hover:bg-white/10 rounded-md text-md-sys-secondary hover:text-white transition-colors"
+                  className="p-1.5 hover:bg-md-sys-onSurface/10 rounded-md text-md-sys-onSurface hover:text-md-sys-primary transition-colors"
                   title="Transpose Down (-1 Semitone)"
                 >
                    <span className="material-symbols-rounded text-[18px]">remove</span>
                 </button>
-                <span className="text-[10px] font-bold text-md-sys-secondary px-2 uppercase tracking-wider select-none">Transpose</span>
+                <span className="text-[10px] font-bold text-md-sys-onSurface/70 px-2 uppercase tracking-wider select-none">Transpose</span>
                 <button 
                   onClick={() => handleTransposeClick(1)}
-                  className="p-1.5 hover:bg-white/10 rounded-md text-md-sys-secondary hover:text-white transition-colors"
+                  className="p-1.5 hover:bg-md-sys-onSurface/10 rounded-md text-md-sys-onSurface hover:text-md-sys-primary transition-colors"
                   title="Transpose Up (+1 Semitone)"
                 >
                    <span className="material-symbols-rounded text-[18px]">add</span>
@@ -121,14 +121,14 @@ export const Editor: React.FC<EditorProps> = ({
 
              <button 
                 onClick={onImport} 
-                className="p-2 hover:bg-md-sys-surfaceVariant rounded-lg text-md-sys-secondary hover:text-md-sys-onSurface transition-colors" 
+                className="p-2 hover:bg-md-sys-onSurface/10 rounded-lg text-md-sys-onSurface transition-colors" 
                 title="Import Source (.abc, .txt)"
              >
                 <span className="material-symbols-rounded text-[20px]">upload_file</span>
              </button>
              <button 
                 onClick={onExport} 
-                className="p-2 hover:bg-md-sys-surfaceVariant rounded-lg text-md-sys-secondary hover:text-md-sys-onSurface transition-colors" 
+                className="p-2 hover:bg-md-sys-onSurface/10 rounded-lg text-md-sys-onSurface transition-colors" 
                 title="Export Source (.abc)"
              >
                 <span className="material-symbols-rounded text-[20px]">download</span>
